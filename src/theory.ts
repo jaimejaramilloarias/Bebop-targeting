@@ -1,19 +1,25 @@
-import theoryData from "../data/theory.json" assert { type: "json" };
+import theoryData from "../data/theory.json" with { type: "json" };
 
 export type FormulaType = 1 | 2;
 
+export interface TargetInfo {
+  reference: string;
+  interval?: string;
+  type: FormulaType | string;
+}
+
 export interface ChordProfile {
   symbol: string;
-  structure: Record<string, string>;
+  structure: string[];
   extensions_default: Record<string, string>;
-  targets: Record<string, { type: FormulaType; reference: string }>;
+  targets: Record<string, TargetInfo>;
 }
 
 export interface TheoryData {
   meta: unknown;
   formulas: {
-    TIPO_1: Record<string, string[][]>;
-    TIPO_2: Record<string, string[][]>;
+    TIPO_1: Record<string, number[][]>;
+    TIPO_2: Record<string, number[][]>;
   };
   rules_tipo: unknown;
   chords: Record<string, ChordProfile>;
@@ -106,7 +112,7 @@ export function getChordProfile(symbol: string): ChordProfile {
   return profile;
 }
 
-export function getFormulas(tipo: FormulaType): Record<string, string[][]> {
+export function getFormulas(tipo: FormulaType): Record<string, number[][]> {
   if (tipo === 1) {
     return theory.formulas.TIPO_1;
   }

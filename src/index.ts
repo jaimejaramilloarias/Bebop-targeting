@@ -9,3 +9,5 @@ export * from "./pitch.js";
 export * from "./contour.js";
 export * from "./rhythm.js";
 export * from "./scheduler.js";
+export * from "./api.js";
+export * from "./server.js";

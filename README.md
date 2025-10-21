@@ -13,7 +13,14 @@ Generado el 2025-10-21T01:29:31.
 ## Desarrollo
 1. Instalar dependencias con `npm install`.
 2. Ejecutar las pruebas con `npm test`.
-3. Seguir `agents.md` y `engine.md` para completar los módulos restantes (contour, rhythm, targeting, etc.).
+3. Levantar el servidor HTTP con `npm run start:api` para exponer `POST /api/generate`.
+4. Seguir `agents.md` y `engine.md` para completar los módulos restantes (contour, rhythm, targeting, etc.).
+
+### CLI y API
+- `npm run start:api` → compila el paquete y arranca el endpoint JSON (por defecto en `http://localhost:4000`).
+- `npm run cli -- --progression "| Dm9  G13 | C∆ |" --seed 42 --swing` → genera notas y las imprime en texto.
+
+El endpoint responde con notas, metadatos y exportaciones en texto/MIDI/MusicXML.
 
 ### UI web
 La UI React vive en `ui/` y está lista para ejecutarse tanto en local como desde GitHub Pages:
