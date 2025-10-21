@@ -3,3 +3,7 @@ export * from "./theory.js";
 export * from "./rng.js";
 export * from "./exporter/toText.js";
 export * from "./validation.js";
+export * from "./pitch.js";
+export * from "./contour.js";
+export * from "./rhythm.js";
+export * from "./scheduler.js";
