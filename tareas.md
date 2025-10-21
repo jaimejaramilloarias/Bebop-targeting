@@ -16,8 +16,8 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 
 ## Exportadores y entrega
 - ✅ Entregar exportador textual con metadatos opcionales (`src/exporter/toText.ts`).
-- ⬜️ Implementar exportador MIDI con soporte básico de swing.
-- ⬜️ Implementar exportador MusicXML con compases 4/4.
+- ✅ Implementar exportador MIDI con soporte básico de swing.
+- ✅ Implementar exportador MusicXML con compases 4/4.
 - ⬜️ Diseñar API HTTP/CLI para consumir el generador desde UI externa.
 
 ## UI y experiencia de usuario
