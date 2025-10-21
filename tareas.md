@@ -43,5 +43,5 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 - ⬜️ Documentar en README el flujo de uso completo y las convenciones de targets.
 
 ## Investigación futura
-- ⬜️ Hooks de humanización (swing variable, articulaciones).
-- ⬜️ Sistema de políticas configurables para alternancia de tipos de fórmula.
+- ✅ Hooks de humanización (swing variable, articulaciones).
+- ✅ Sistema de políticas configurables para alternancia de tipos de fórmula.

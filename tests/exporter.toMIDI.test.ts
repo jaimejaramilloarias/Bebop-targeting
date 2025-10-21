@@ -10,6 +10,7 @@ interface ParsedMidiEvent {
   metaType?: number;
   data?: Uint8Array;
   midi?: number;
+  velocity?: number;
 }
 
 interface ParsedMidiFile {
@@ -84,9 +85,9 @@ function parseMidi(data: Uint8Array): ParsedMidiFile {
       cursor += 1;
     }
     if (command === 0x90 && velocity > 0) {
-      events.push({ tick: absoluteTick, type: "on", midi: param1 });
+      events.push({ tick: absoluteTick, type: "on", midi: param1, velocity });
     } else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
-      events.push({ tick: absoluteTick, type: "off", midi: param1 });
+      events.push({ tick: absoluteTick, type: "off", midi: param1, velocity });
     }
   }
   return { ticksPerQuarter, events };
@@ -124,5 +125,21 @@ describe("exporter/toMIDI", () => {
     expect(closureMidi).toBeDefined();
     const closureSwing = parsedSwing.events.find(event => event.type === "on" && event.midi === closureMidi);
     expect(closureSwing && closureSwing.tick % 480 === 0).toBe(true);
+  });
+
+  it("permite humanizar tiempos y velocidades con RNG determinista", () => {
+    const midiBase = notesToMidi(sampleNotes, { swing: true });
+    const midiHumanized = notesToMidi(sampleNotes, {
+      swing: true,
+      humanize: { rng: makeRng(31415), timing: 0.1, velocity: 0.25 },
+    });
+    const baseEvents = parseMidi(midiBase).events.filter(event => event.type === "on");
+    const humanizedEvents = parseMidi(midiHumanized).events.filter(event => event.type === "on");
+    expect(humanizedEvents).toHaveLength(baseEvents.length);
+    const tickDiffers = humanizedEvents.some((event, index) => event.tick !== baseEvents[index]!.tick);
+    const velocityDiffers = humanizedEvents.some(
+      (event, index) => event.velocity !== baseEvents[index]!.velocity,
+    );
+    expect(tickDiffers || velocityDiffers).toBe(true);
   });
 });

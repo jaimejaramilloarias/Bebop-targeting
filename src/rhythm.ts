@@ -16,19 +16,43 @@ function getLandingOptions(window: ChordWindow): number[] {
   return LANDING_OPTIONS_BY_LENGTH[window.lengthEighths] ?? [1, 3, 5, 7];
 }
 
-function pickLanding(window: ChordWindow): number {
-  const options = getLandingOptions(window);
-  if (!options.length) {
-    return window.startEighth + 1;
+function mergeLandingPreferences(base: number[], preferred?: number[] | null): number[] {
+  if (!preferred || preferred.length === 0) {
+    return base;
   }
-  return window.startEighth + options[0];
+  const merged: number[] = [];
+  const seen = new Set<number>();
+  for (const option of preferred) {
+    if (base.includes(option) && !seen.has(option)) {
+      merged.push(option);
+      seen.add(option);
+    }
+  }
+  for (const option of base) {
+    if (!seen.has(option)) {
+      merged.push(option);
+      seen.add(option);
+    }
+  }
+  return merged.length ? merged : base;
 }
 
-export function computeRhythmPlacement(window: ChordWindow, formulaLength: number): RhythmPlacement {
+function pickLanding(window: ChordWindow, preferred?: number[] | null): number {
+  const baseOptions = getLandingOptions(window);
+  const options = mergeLandingPreferences(baseOptions, preferred);
+  const offset = options[0] ?? 1;
+  return window.startEighth + offset;
+}
+
+export function computeRhythmPlacement(
+  window: ChordWindow,
+  formulaLength: number,
+  preferredLanding?: number[] | null,
+): RhythmPlacement {
   if (formulaLength <= 0) {
     throw new Error("La fórmula debe tener al menos una nota (el target)");
   }
-  const landing = pickLanding(window);
+  const landing = pickLanding(window, preferredLanding);
   const approachStart = landing - (formulaLength - 1);
   const parity = Math.abs(approachStart % 2);
   const needsIsolated = parity === 1;

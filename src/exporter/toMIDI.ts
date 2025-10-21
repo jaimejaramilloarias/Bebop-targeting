@@ -1,4 +1,5 @@
 import type { Note } from "./toText.js";
+import type { RandomNumberGenerator } from "../rng.js";
 
 const HEADER_CHUNK_ID = [0x4d, 0x54, 0x68, 0x64]; // "MThd"
 const TRACK_CHUNK_ID = [0x4d, 0x54, 0x72, 0x6b]; // "MTrk"
@@ -21,6 +22,12 @@ interface NormalizedNote extends Note {
   t: number;
 }
 
+export interface HumanizeOptions {
+  rng: RandomNumberGenerator;
+  timing?: number;
+  velocity?: number;
+}
+
 export interface MidiExportOptions {
   tempoBpm?: number;
   swing?: boolean;
@@ -28,6 +35,7 @@ export interface MidiExportOptions {
   channel?: number;
   velocity?: number;
   trackName?: string;
+  humanize?: HumanizeOptions;
 }
 
 function toUint16Bytes(value: number): [number, number] {
@@ -86,6 +94,58 @@ function normalizeNotes(notes: readonly Note[]): { notes: NormalizedNote[]; offs
     });
   }
   return { notes: cloned as NormalizedNote[], offset };
+}
+
+function randomBipolar(rng: RandomNumberGenerator): number {
+  return rng.nextFloat() * 2 - 1;
+}
+
+interface MidiNoteTiming {
+  start: number;
+  end: number;
+  midi: number;
+  velocity: number;
+}
+
+function computeMidiNoteTimings(
+  notes: readonly NormalizedNote[],
+  swingRatio: number | null,
+  baseVelocity: number,
+  humanize: HumanizeOptions | undefined,
+): MidiNoteTiming[] {
+  const timings: MidiNoteTiming[] = [];
+  const velocityBase = clamp(Math.round(baseVelocity), 1, 127);
+  const offsetRange = humanize && typeof humanize.timing === "number"
+    ? Math.round(TICKS_PER_QUARTER * clamp(humanize.timing, 0, 0.5))
+    : 0;
+  const velocitySpread = humanize && typeof humanize.velocity === "number"
+    ? Math.round(velocityBase * clamp(humanize.velocity, 0, 1))
+    : 0;
+  const rng = humanize?.rng;
+  notes.forEach(note => {
+    const baseStart = eighthToTicks(note.t, swingRatio);
+    const baseEnd = eighthToTicks(note.t + note.dur, swingRatio);
+    const duration = Math.max(12, baseEnd - baseStart);
+    let start = baseStart;
+    if (rng && offsetRange > 0) {
+      const offset = Math.round(randomBipolar(rng) * offsetRange);
+      const maxStart = Math.max(baseStart, baseEnd - 6);
+      start = clamp(baseStart + offset, 0, maxStart);
+      if (timings.length && start < timings[timings.length - 1].start) {
+        start = timings[timings.length - 1].start;
+      }
+    } else if (timings.length && start < timings[timings.length - 1].start) {
+      start = timings[timings.length - 1].start;
+    }
+    let velocity = velocityBase;
+    if (rng && velocitySpread > 0) {
+      const delta = Math.round(randomBipolar(rng) * velocitySpread);
+      velocity = clamp(velocityBase + delta, 1, 127);
+    }
+    const end = start + duration;
+    timings.push({ start, end, midi: note.midi, velocity });
+  });
+  return timings;
 }
 
 function eighthToTicks(eighth: number, swingRatio: number | null): number {
@@ -148,25 +208,18 @@ function buildTrackChunk(events: MidiEvent[]): number[] {
   ];
 }
 
-function realiseNoteEvents(
-  notes: readonly NormalizedNote[],
-  swingRatio: number | null,
-  channel: number,
-  velocity: number,
-): MidiEvent[] {
+function realiseNoteEvents(timings: readonly MidiNoteTiming[], channel: number): MidiEvent[] {
   const events: MidiEvent[] = [];
-  notes.forEach(note => {
-    const start = eighthToTicks(note.t, swingRatio);
-    const end = eighthToTicks(note.t + note.dur, swingRatio);
+  timings.forEach(timing => {
     events.push({
-      tick: start,
+      tick: timing.start,
       order: 10,
-      bytes: [0x90 | (channel & 0x0f), note.midi & 0x7f, clamp(Math.round(velocity), 1, 127)],
+      bytes: [0x90 | (channel & 0x0f), timing.midi & 0x7f, clamp(Math.round(timing.velocity), 1, 127)],
     });
     events.push({
-      tick: end,
+      tick: timing.end,
       order: 20,
-      bytes: [0x80 | (channel & 0x0f), note.midi & 0x7f, 0x40],
+      bytes: [0x80 | (channel & 0x0f), timing.midi & 0x7f, 0x40],
     });
   });
   return events;
@@ -176,10 +229,14 @@ export function notesToMidi(notes: readonly Note[], options: MidiExportOptions =
   const { notes: normalized } = normalizeNotes(notes);
   const tempoMeta = microsecondsPerQuarter(options.tempoBpm ?? DEFAULT_TEMPO_BPM);
   const channel = Number.isInteger(options.channel) ? (options.channel as number) : DEFAULT_CHANNEL;
-  const velocity = Number.isFinite(options.velocity) ? (options.velocity as number) : DEFAULT_VELOCITY;
+  const baseVelocity = Number.isFinite(options.velocity) ? Number(options.velocity) : DEFAULT_VELOCITY;
   const swingRatio = options.swing || (typeof options.swingRatio === "number" && options.swingRatio > 0)
     ? clamp(options.swingRatio ?? DEFAULT_SWING_RATIO, 0, 1)
     : null;
+  const humanize = options.humanize;
+  if (humanize && typeof humanize.rng?.nextFloat !== "function") {
+    throw new Error("Las opciones de humanización requieren un RNG válido");
+  }
 
   const events: MidiEvent[] = [
     createMetaEvent(0, 0, 0x58, [0x04, 0x02, 0x18, 0x08]),
@@ -200,7 +257,8 @@ export function notesToMidi(notes: readonly Note[], options: MidiExportOptions =
     events.push(createTextMeta(0, 3, label));
   }
 
-  events.push(...realiseNoteEvents(normalized, swingRatio, channel, velocity));
+  const noteTimings = computeMidiNoteTimings(normalized, swingRatio, baseVelocity, humanize);
+  events.push(...realiseNoteEvents(noteTimings, channel));
 
   const data = [...buildHeaderChunk(), ...buildTrackChunk(events)];
   return new Uint8Array(data);

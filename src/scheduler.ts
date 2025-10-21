@@ -5,6 +5,7 @@ import { computeRhythmPlacement } from "./rhythm.js";
 import type { RandomNumberGenerator } from "./rng.js";
 import { midiToPitch, wrapMidiToRange } from "./pitch.js";
 import type { Note, NoteSource } from "./exporter/toText.js";
+import { createPolicyManager, type PolicyManager } from "./policies.js";
 
 const MIN_MIDI = 60;
 const MAX_MIDI = 84;
@@ -21,23 +22,34 @@ export interface SchedulerRequest {
 export interface SchedulerContext {
   rng: RandomNumberGenerator;
   contour?: ContourGenerator;
+  policy?: PolicyManager;
 }
 
 export interface ScheduledNote extends Note {
   src: NoteSource;
 }
 
-function flattenFormulas(collection: Record<string, number[][]>): number[][] {
-  const formulas: number[][] = [];
-  for (const group of Object.values(collection)) {
-    for (const formula of group) {
-      formulas.push([...formula]);
+interface FormulaCandidate {
+  pattern: number[];
+  group: string;
+}
+
+function flattenFormulas(collection: Record<string, number[][]>): FormulaCandidate[] {
+  const formulas: FormulaCandidate[] = [];
+  for (const [group, groupFormulas] of Object.entries(collection)) {
+    for (const formula of groupFormulas) {
+      formulas.push({ pattern: [...formula], group });
     }
   }
   return formulas;
 }
 
-function selectFormula(profile: ChordProfile, target: ContourTarget, rng: RandomNumberGenerator): number[] {
+function selectFormula(
+  profile: ChordProfile,
+  target: ContourTarget,
+  rng: RandomNumberGenerator,
+  policy: PolicyManager | undefined,
+): number[] {
   const targetInfo = profile.targets[target.degree];
   if (!targetInfo) {
     throw new Error(`El perfil no contiene información para el grado ${target.degree}`);
@@ -51,18 +63,29 @@ function selectFormula(profile: ChordProfile, target: ContourTarget, rng: Random
   if (!formulas.length) {
     throw new Error(`No hay fórmulas disponibles para el tipo ${targetInfo.type}`);
   }
-  const weights = formulas.map(formula => Math.max(1, formula.length - 1));
-  const selected = rng.choiceWeighted(formulas, weights);
-  return [...selected];
+  const weights = formulas.map(candidate => {
+    const baseWeight = Math.max(1, candidate.pattern.length - 1);
+    if (!policy) {
+      return baseWeight;
+    }
+    return policy.evaluateFormulaWeight(tipo, candidate, baseWeight);
+  });
+  const sanitizedWeights = weights.map(value => Math.max(0, value));
+  const total = sanitizedWeights.reduce((sum, value) => sum + value, 0);
+  const resolvedWeights = total > 0 ? sanitizedWeights : formulas.map(() => 1);
+  const selected = rng.choiceWeighted(formulas, resolvedWeights);
+  policy?.registerSelectedTipo(tipo);
+  return [...selected.pattern];
 }
 
 function fitFormula(
   window: ChordWindow,
   formula: number[],
   previousWindow: ChordWindow | null,
+  landingPreference: number[] | null,
 ): { formula: number[]; placement: ReturnType<typeof computeRhythmPlacement> } {
   let current = [...formula];
-  let placement = computeRhythmPlacement(window, current.length);
+  let placement = computeRhythmPlacement(window, current.length, landingPreference);
   const lowerBound = previousWindow ? previousWindow.startEighth : 0;
   while (current.length > 1) {
     const earliest = placement.isolated !== null ? placement.isolated : placement.approachStart;
@@ -70,7 +93,7 @@ function fitFormula(
       break;
     }
     current = current.slice(1);
-    placement = computeRhythmPlacement(window, current.length);
+    placement = computeRhythmPlacement(window, current.length, landingPreference);
   }
   return { formula: current, placement };
 }
@@ -87,9 +110,11 @@ function scheduleForWindow(
   target: ContourTarget,
   rng: RandomNumberGenerator,
   previousWindow: ChordWindow | null,
+  policy: PolicyManager | undefined,
 ): ScheduledNote[] {
-  const rawFormula = selectFormula(profile, target, rng);
-  const { formula, placement } = fitFormula(window, rawFormula, previousWindow);
+  const rawFormula = selectFormula(profile, target, rng, policy);
+  const landingPreference = policy?.getLandingPreferences(window.lengthEighths) ?? null;
+  const { formula, placement } = fitFormula(window, rawFormula, previousWindow, landingPreference);
   const approachMidis = realiseApproachMidis(target.midi, formula);
   let isolatedTime = placement.isolated;
   if (isolatedTime !== null && isolatedTime < 0 && !previousWindow) {
@@ -162,12 +187,13 @@ export function scheduleProgression(progression: string, context: SchedulerConte
     return [];
   }
   const contour = context.contour ?? createContourGenerator();
+  const policy = context.policy ?? createPolicyManager();
   const notes: ScheduledNote[] = [];
   windows.forEach((window, index) => {
     const profile = getChordProfile(window.chordSymbol);
     const target = contour.nextTarget(window.chordSymbol, profile);
     const previousWindow = index > 0 ? windows[index - 1] : null;
-    scheduleForWindow(notes, window, profile, target, context.rng, previousWindow);
+    scheduleForWindow(notes, window, profile, target, context.rng, previousWindow, policy);
   });
   notes.sort((a, b) => a.t - b.t);
   addClosure(notes);
