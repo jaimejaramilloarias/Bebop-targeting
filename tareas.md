@@ -25,6 +25,16 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 - ⬜️ Integrar previsualización textual en la UI usando el exportador.
 - ⬜️ Añadir controles para descargar MIDI/MusicXML.
 - ⬜️ Conectar la UI con los helpers de validación para alertar acordes desconocidos.
+- ⬜️ Implementar previsualización de audio MIDI en la UI (render en WebAudio con swing opcional).
+- ⬜️ Añadir botón de "Regenerar" que solicite nuevas variantes al motor manteniendo/alterando seed.
+- ⬜️ Exponer selector de puerto mediante WebMIDI para enrutar la reproducción hacia plugins externos.
+- ⬜️ Renderizar una vista de partitura/tablatura (Canvas/SVG) con las notas resultantes por compás.
+
+## Integraciones y reproducción
+- ⬜️ Implementar en el backend un stream MIDI reproducible (con swing) consumible por la UI.
+- ⬜️ Preparar endpoints o mensajes para despachar múltiples variantes (mismo input, seeds distintos).
+- ⬜️ Añadir bridge WebMIDI/MIDI Writer para sincronizar reproducción local y puertos externos.
+- ⬜️ Generar datos estructurados (MusicXML/JSON) que faciliten la renderización de la partitura en la UI.
 
 ## Calidad y automatización
 - ✅ Cubrir teoría, parser, RNG y exportador textual con pruebas unitarias (`tests/*`).
