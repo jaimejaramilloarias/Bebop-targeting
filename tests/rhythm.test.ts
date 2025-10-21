@@ -18,4 +18,11 @@ describe("rhythm", () => {
     expect(placement.approachStart).toBe(8);
     expect(placement.isolated).toBeNull();
   });
+
+  it("respeta las preferencias de aterrizaje cuando se proporcionan", () => {
+    const window: ChordWindow = { chordSymbol: "F7", startEighth: 8, lengthEighths: 4 };
+    const placement = computeRhythmPlacement(window, 3, [3, 1]);
+    expect(placement.landing).toBe(11);
+    expect(placement.approachStart).toBe(9);
+  });
 });

@@ -3,6 +3,7 @@ import { notesToMusicXML } from "./exporter/toMusicXML.js";
 import { notesToText } from "./exporter/toText.js";
 import { createContourGenerator } from "./contour.js";
 import { makeRng } from "./rng.js";
+import { createPolicyManager, type PolicyConfig } from "./policies.js";
 import {
   scheduleRequest,
   type SchedulerContext,
@@ -45,6 +46,11 @@ export interface GeneratorMidiStream {
 export interface GeneratorOptions {
   defaultTempoBpm?: number;
   defaultSwingRatio?: number;
+  policyConfig?: PolicyConfig;
+  midiHumanize?: {
+    timing?: number;
+    velocity?: number;
+  };
 }
 
 export interface GeneratorVariant extends GeneratorResponse {}
@@ -82,11 +88,16 @@ function normalizeSwingRatio(swing: boolean | undefined, ratio: number | undefin
   return swing ? fallback : null;
 }
 
-function createContext(request: SchedulerRequest, seed: number): SchedulerContext {
+function createContext(
+  request: SchedulerRequest,
+  seed: number,
+  options: GeneratorOptions,
+): SchedulerContext {
   const contour = createContourGenerator({ slider: request.contour_slider });
   return {
     rng: makeRng(seed),
     contour,
+    policy: createPolicyManager(options.policyConfig),
   };
 }
 
@@ -116,11 +127,18 @@ function createMidiBinary(
   meta: GeneratorMeta,
   options: GeneratorOptions,
 ): Uint8Array {
+  const humanize = options.midiHumanize
+    ? {
+        ...options.midiHumanize,
+        rng: makeRng((meta.seed >>> 0) ^ 0x6b6b6b),
+      }
+    : undefined;
   return notesToMidi(notes, {
     tempoBpm: request.tempo_bpm ?? options.defaultTempoBpm ?? DEFAULT_TEMPO_BPM,
     swing: Boolean(request.swing),
     swingRatio: meta.swingRatio ?? undefined,
     trackName: request.progression,
+    humanize,
   });
 }
 
@@ -156,7 +174,7 @@ function generateInternals(
   }
   assertKnownChords(request.progression);
   const seed = normalizeSeed(request.seed);
-  const context = createContext(request, seed);
+  const context = createContext(request, seed, options);
   const notes = scheduleRequest(request, context);
   const meta = computeMeta(request, notes, seed, options);
   const artifacts = createArtifacts(request, notes, meta, options);
