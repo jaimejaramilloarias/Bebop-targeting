@@ -157,9 +157,18 @@ export function createApiServer(options: ServerOptions = {}): http.Server {
         res.end();
         return;
       }
+      if (req.method === "GET" && GENERATE_ROUTES.has(path)) {
+        sendJson(res, 200, {
+          message: "Bebop Targeting API disponible. Usa POST /api/generate para generar líneas.",
+        });
+        return;
+      }
       if (req.method !== "POST") {
         const status = isKnownRoute ? 405 : 404;
         const message = status === 405 ? "Método no permitido" : "Ruta no encontrada";
+        if (status === 405) {
+          res.setHeader("Allow", "POST, OPTIONS");
+        }
         sendJson(res, status, { message });
         return;
       }
