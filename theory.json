@@ -1,0 +1,669 @@
+{
+  "meta": {
+    "terminologia": {
+      "target": "sonido estructural de llegada (0)",
+      "referencia_superior": "sonido diatonico inmediatamente superior al target",
+      "tipo_1": "referencia superior a un tono exacto (M2)",
+      "tipo_2": "referencia superior a semitono (m2) o a mas de un tono (>= A2)"
+    },
+    "ritmica": {
+      "unidad": "corcheas",
+      "colocacion_target": "el 0 cae en corcheas impares: 1,3,5,7"
+    },
+    "aplicacion": {
+      "acordes_validos": "solo en acordes con 7, 9, 11 o 13",
+      "suposiciones": [
+        "Si no hay 9 especificada → usar 9M (salvo ø y º: 9m por defecto)",
+        "Si acorde con 3m y sin 11 → 11j",
+        "Si acorde con 3M y sin 11 → 11+",
+        "Si acorde con 5j y sin 13 → 13m o 13M permitidas",
+        "Si acorde con 5b y sin 13 → 13m",
+        "En acordes con 5+ no hay 13",
+        "En sus4 no hay 11"
+      ]
+    },
+    "registro": {
+      "min": "C4",
+      "max": "C6"
+    }
+  },
+  "formulas": {
+    "TIPO_1": {
+      "dobles": [
+        [
+          2,
+          -1,
+          0
+        ],
+        [
+          -1,
+          2,
+          0
+        ]
+      ],
+      "triples": [
+        [
+          2,
+          -1,
+          2,
+          0
+        ],
+        [
+          -1,
+          2,
+          -1,
+          0
+        ],
+        [
+          -1,
+          2,
+          1,
+          0
+        ],
+        [
+          2,
+          -1,
+          1,
+          0
+        ]
+      ],
+      "cuadruples": [
+        [
+          -1,
+          2,
+          1,
+          -1,
+          0
+        ],
+        [
+          2,
+          -1,
+          1,
+          -1,
+          0
+        ],
+        [
+          2,
+          1,
+          -1,
+          1,
+          0
+        ]
+      ],
+      "quintuples": [
+        [
+          -2,
+          -1,
+          2,
+          1,
+          -1,
+          0
+        ],
+        [
+          1,
+          2,
+          -1,
+          1,
+          -1,
+          0
+        ],
+        [
+          1,
+          2,
+          1,
+          -1,
+          1,
+          0
+        ]
+      ],
+      "sextuples": [
+        [
+          2,
+          -2,
+          -1,
+          2,
+          1,
+          -1,
+          0
+        ]
+      ]
+    },
+    "TIPO_2": {
+      "dobles": [
+        [
+          1,
+          -2,
+          0
+        ],
+        [
+          -2,
+          1,
+          0
+        ]
+      ],
+      "triples": [
+        [
+          1,
+          -2,
+          1,
+          0
+        ],
+        [
+          -2,
+          1,
+          -2,
+          0
+        ],
+        [
+          1,
+          -2,
+          -1,
+          0
+        ],
+        [
+          -2,
+          1,
+          -1,
+          0
+        ]
+      ],
+      "cuadruples": [
+        [
+          -2,
+          1,
+          -2,
+          -1,
+          0
+        ],
+        [
+          1,
+          -2,
+          -1,
+          1,
+          0
+        ]
+      ],
+      "quintuples": [
+        [
+          -3,
+          -2,
+          1,
+          -2,
+          -1,
+          0
+        ],
+        [
+          -3,
+          -2,
+          1,
+          -1,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          -2,
+          -1,
+          1,
+          0
+        ]
+      ],
+      "sextuples": [
+        [
+          1,
+          -3,
+          -2,
+          1,
+          -2,
+          -1,
+          0
+        ],
+        [
+          -2,
+          1,
+          -3,
+          -2,
+          -1,
+          1,
+          0
+        ]
+      ]
+    }
+  },
+  "rules_tipo": {
+    "TIPO_1": "cuando el sonido superior esta a un tono exacto (M2) del target",
+    "TIPO_2": "cuando esta a semitono (m2) o a mas de un tono (>= A2)"
+  },
+  "chords": {
+    "maj7": {
+      "symbol": "X∆",
+      "structure": [
+        "1",
+        "3",
+        "5",
+        "7M"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11+",
+        "13": "13M"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "3": {
+          "reference": "11+",
+          "interval": "A2",
+          "type": 2
+        },
+        "5": {
+          "reference": "13M",
+          "interval": "M2",
+          "type": 1
+        },
+        "7M": {
+          "reference": "1",
+          "interval": "m2",
+          "type": 2
+        }
+      }
+    },
+    "m7": {
+      "symbol": "Xm7",
+      "structure": [
+        "1",
+        "♭3",
+        "5",
+        "♭7"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11j",
+        "13": "13m"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭3": {
+          "reference": "11j",
+          "interval": "M2",
+          "type": 1
+        },
+        "5": {
+          "reference": "13m",
+          "interval": "m2",
+          "type": 2
+        },
+        "♭7": {
+          "reference": "1",
+          "interval": "M2",
+          "type": 1
+        }
+      }
+    },
+    "7": {
+      "symbol": "X7",
+      "structure": [
+        "1",
+        "3",
+        "5",
+        "♭7"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11+",
+        "13": "13M"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "3": {
+          "reference": "11+",
+          "interval": "A2",
+          "type": 2
+        },
+        "5": {
+          "reference": "13M",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭7": {
+          "reference": "1",
+          "interval": "M2",
+          "type": 1
+        }
+      }
+    },
+    "ø": {
+      "symbol": "Xø",
+      "structure": [
+        "1",
+        "♭3",
+        "♭5",
+        "♭7"
+      ],
+      "extensions_default": {
+        "9": "9m",
+        "11": "11j",
+        "13": "13m"
+      },
+      "targets": {
+        "1": {
+          "reference": "9m",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭3": {
+          "reference": "11j",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭5": {
+          "reference": "13m",
+          "interval": "m2",
+          "type": 2
+        },
+        "♭7": {
+          "reference": "1",
+          "interval": "M2",
+          "type": 1
+        }
+      },
+      "notes": "Si el cifrado especifica 9 (p.ej. Dø9) entonces 9M reemplaza a 9m para la referencia de 1."
+    },
+    "maj7#5": {
+      "symbol": "X+∆",
+      "structure": [
+        "1",
+        "3",
+        "♯5",
+        "7M"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11+",
+        "13": "none"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "3": {
+          "reference": "11+",
+          "interval": "A2",
+          "type": 2
+        },
+        "♯5": {
+          "reference": "none",
+          "type": "NA"
+        },
+        "7M": {
+          "reference": "1",
+          "interval": "m2",
+          "type": 2
+        }
+      }
+    },
+    "7#5": {
+      "symbol": "X+7",
+      "structure": [
+        "1",
+        "3",
+        "♯5",
+        "♭7"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11+",
+        "13": "none"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "3": {
+          "reference": "11+",
+          "interval": "A2",
+          "type": 2
+        },
+        "♯5": {
+          "reference": "none",
+          "type": "NA"
+        },
+        "♭7": {
+          "reference": "1",
+          "interval": "M2",
+          "type": 1
+        }
+      }
+    },
+    "mMaj7": {
+      "symbol": "X-∆",
+      "structure": [
+        "1",
+        "♭3",
+        "5",
+        "7M"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11j",
+        "13": "13m"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭3": {
+          "reference": "11j",
+          "interval": "M2",
+          "type": 1
+        },
+        "5": {
+          "reference": "13m",
+          "interval": "m2",
+          "type": 2
+        },
+        "7M": {
+          "reference": "1",
+          "interval": "m2",
+          "type": 2
+        }
+      }
+    },
+    "dim7": {
+      "symbol": "Xº7",
+      "structure": [
+        "1",
+        "♭3",
+        "♭5",
+        "♭♭7"
+      ],
+      "extensions_default": {
+        "9": "9m",
+        "11": "11j",
+        "13": "13m"
+      },
+      "targets": {
+        "1": {
+          "reference": "9m",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭3": {
+          "reference": "11j",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭5": {
+          "reference": "13m",
+          "interval": "m2",
+          "type": 2
+        },
+        "♭♭7": {
+          "reference": "1",
+          "interval": "M2",
+          "type": 1
+        }
+      }
+    },
+    "m6": {
+      "symbol": "Xm6",
+      "structure": [
+        "1",
+        "♭3",
+        "5",
+        "6"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11j",
+        "13": "13M"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "♭3": {
+          "reference": "11j",
+          "interval": "M2",
+          "type": 1
+        },
+        "5": {
+          "reference": "13M",
+          "interval": "M2",
+          "type": 1
+        },
+        "6": {
+          "reference": "7♭ (contexto)",
+          "interval": "M2",
+          "type": 1
+        }
+      }
+    },
+    "frig": {
+      "symbol": "Xfrig",
+      "structure": [
+        "1",
+        "4",
+        "5",
+        "♭7",
+        "♭9"
+      ],
+      "extensions_default": {
+        "9": "♭9"
+      },
+      "targets": {
+        "1": {
+          "reference": "♭9",
+          "interval": "m2",
+          "type": 2
+        },
+        "4": {
+          "reference": "none",
+          "type": "NA"
+        },
+        "5": {
+          "reference": "none",
+          "type": "NA"
+        },
+        "♭7": {
+          "reference": "1",
+          "interval": "M2",
+          "type": 1
+        }
+      },
+      "notes": "Acorde frigio = sus4 con ♭7 y ♭9 (♭9 obligatoria)."
+    },
+    "maj7b5": {
+      "symbol": "X∆(♭5)",
+      "structure": [
+        "1",
+        "3",
+        "♭5",
+        "7M"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11+",
+        "13": "13m"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "3": {
+          "reference": "11+",
+          "interval": "A2",
+          "type": 2
+        },
+        "♭5": {
+          "reference": "13m",
+          "interval": "m2",
+          "type": 2
+        },
+        "7M": {
+          "reference": "1",
+          "interval": "m2",
+          "type": 2
+        }
+      }
+    },
+    "7b5": {
+      "symbol": "X7(♭5)",
+      "structure": [
+        "1",
+        "3",
+        "♭5",
+        "♭7"
+      ],
+      "extensions_default": {
+        "9": "9M",
+        "11": "11+",
+        "13": "13m"
+      },
+      "targets": {
+        "1": {
+          "reference": "9M",
+          "interval": "M2",
+          "type": 1
+        },
+        "3": {
+          "reference": "11+",
+          "interval": "A2",
+          "type": 2
+        },
+        "♭5": {
+          "reference": "13m",
+          "interval": "m2",
+          "type": 2
+        },
+        "♭7": {
+          "reference": "1",
+          "interval": "M2",
+          "type": 1
+        }
+      }
+    }
+  }
+}

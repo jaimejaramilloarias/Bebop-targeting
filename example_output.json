@@ -1,0 +1,81 @@
+{
+  "notes": [
+    {
+      "t": 0,
+      "dur": 1,
+      "pitch": "E4",
+      "midi": 64,
+      "src": "approach",
+      "to": "F4"
+    },
+    {
+      "t": 1,
+      "dur": 1,
+      "pitch": "F4",
+      "midi": 65,
+      "src": "target",
+      "degree": "3",
+      "chord": "Dm9"
+    },
+    {
+      "t": 4,
+      "dur": 1,
+      "pitch": "A4",
+      "midi": 69,
+      "src": "approach",
+      "to": "B4"
+    },
+    {
+      "t": 5,
+      "dur": 1,
+      "pitch": "B4",
+      "midi": 71,
+      "src": "target",
+      "degree": "3",
+      "chord": "G13"
+    },
+    {
+      "t": 7,
+      "dur": 1,
+      "pitch": "B4",
+      "midi": 71,
+      "src": "approach",
+      "to": "C5"
+    },
+    {
+      "t": 8,
+      "dur": 1,
+      "pitch": "C5",
+      "midi": 72,
+      "src": "target",
+      "degree": "1",
+      "chord": "C∆"
+    },
+    {
+      "t": 12,
+      "dur": 1,
+      "pitch": "D5",
+      "midi": 74,
+      "src": "approach",
+      "to": "E5"
+    },
+    {
+      "t": 13,
+      "dur": 1,
+      "pitch": "E5",
+      "midi": 76,
+      "src": "target",
+      "degree": "3",
+      "chord": "C∆"
+    },
+    {
+      "t": 14,
+      "dur": 1,
+      "pitch": "G4",
+      "midi": 67,
+      "src": "closure",
+      "rule": "≤7M"
+    }
+  ],
+  "swing_ratio": 1.6
+}
