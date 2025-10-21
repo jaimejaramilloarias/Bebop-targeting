@@ -93,6 +93,16 @@ describe("HTTP API", () => {
     expect(payload.meta?.progression).toBe("| Fm7 Bb7 | Ebmaj7 |");
   });
 
+  it("responde con un mensaje informativo en GET", async () => {
+    const { port } = await startServer();
+    const response = await fetch(`http://127.0.0.1:${port}/api/generate`, {
+      method: "GET",
+    });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.message).toMatch(/usa post/i);
+  });
+
   it("devuelve errores estructurados para acordes desconocidos", async () => {
     const { port } = await startServer();
     const response = await fetch(`http://127.0.0.1:${port}/generate`, {
