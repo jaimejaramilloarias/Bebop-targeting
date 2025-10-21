@@ -52,7 +52,8 @@ type ApiError = {
 };
 
 const KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-const DEFAULT_PROGRESSION = '| Dm9  G13 | C∆ |';
+const DEFAULT_PROGRESSION = '';
+const PROGRESSION_PLACEHOLDER = '| Dm7  G7 | Cmaj7 |';
 const API_ENDPOINT = '/api/generate';
 const API_MIDI_ENDPOINT = '/api/generate/midi';
 
@@ -523,6 +524,11 @@ export default function App() {
 
   const handleChange = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+    if (key === 'progression' && status === 'error') {
+      setStatus('idle');
+      setErrorMessage(null);
+      setUnknownChords([]);
+    }
   };
 
   const playbackTempo = meta?.tempo_bpm ?? (form.tempo > 0 ? form.tempo : 160);
@@ -596,9 +602,10 @@ export default function App() {
 
   const buildPayload = useCallback(
     (seedOverride?: number): SchedulerRequestPayload => {
+      const trimmedProgression = form.progression.trim();
       const payload: SchedulerRequestPayload = {
         key: form.key,
-        progression: form.progression,
+        progression: trimmedProgression,
         swing: form.swing,
         contour_slider: form.contour
       };
@@ -649,6 +656,17 @@ export default function App() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const trimmedProgression = form.progression.trim();
+    if (!trimmedProgression) {
+      setStatus('error');
+      setErrorMessage('Introduce un cifrado para generar aproximaciones.');
+      setUnknownChords([]);
+      setPreviewNotes([]);
+      setMeta(null);
+      setArtifacts(null);
+      setStructured(null);
+      return;
+    }
     const payload = buildPayload();
     await generatePreview(payload);
   };
@@ -711,6 +729,7 @@ export default function App() {
   }, []);
 
   const isLoading = status === 'loading';
+  const hasProgression = Boolean(form.progression.trim());
 
   return (
     <div className="app">
@@ -754,6 +773,7 @@ export default function App() {
                 onChange={(event) => handleChange('progression', event.target.value)}
                 spellCheck={false}
                 aria-label="Introducir progresión armónica"
+                placeholder={`Introduce un cifrado, por ejemplo ${PROGRESSION_PLACEHOLDER}`}
               />
             </div>
 
@@ -833,7 +853,7 @@ export default function App() {
             </div>
 
             <div className="actions">
-              <button type="submit" className="primary" disabled={isLoading}>
+              <button type="submit" className="primary" disabled={isLoading || !hasProgression}>
                 {isLoading ? 'Generando…' : 'Previsualizar'}
               </button>
               <button type="button" className="secondary" onClick={handleReset} disabled={isLoading}>
