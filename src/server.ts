@@ -1,5 +1,12 @@
 import http from "node:http";
-import { createHttpResponse, type GeneratorOptions, type GeneratorResponse, type SchedulerRequest } from "./api.js";
+import {
+  createHttpResponse,
+  generateVariantsFromRequest,
+  type GeneratorOptions,
+  type GeneratorResponse,
+  type GeneratorVariantsRequest,
+  type SchedulerRequest,
+} from "./api.js";
 import { UnknownChordError, type UnknownChordIssue } from "./validation.js";
 
 export interface ServerOptions {
@@ -67,6 +74,17 @@ async function handleGenerate(
   sendJson(res, 200, response);
 }
 
+async function handleGenerateVariants(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  options: GeneratorOptions | undefined,
+): Promise<void> {
+  const body = await readRequestBody(req);
+  const payload = parseRequestBody(body) as unknown as GeneratorVariantsRequest;
+  const response = generateVariantsFromRequest(payload, options);
+  sendJson(res, 200, response);
+}
+
 export function createApiServer(options: ServerOptions = {}): http.Server {
   const server = http.createServer(async (req, res) => {
     try {
@@ -79,9 +97,15 @@ export function createApiServer(options: ServerOptions = {}): http.Server {
         res.end();
         return;
       }
-      if (req.method === "POST" && req.url === "/generate") {
-        await handleGenerate(req, res, options.generator);
-        return;
+      if (req.method === "POST") {
+        if (req.url === "/generate") {
+          await handleGenerate(req, res, options.generator);
+          return;
+        }
+        if (req.url === "/generate/variants") {
+          await handleGenerateVariants(req, res, options.generator);
+          return;
+        }
       }
       sendJson(res, 404, { message: "Ruta no encontrada" });
     } catch (error) {

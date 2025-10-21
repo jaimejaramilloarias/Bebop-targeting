@@ -45,6 +45,24 @@ describe("HTTP API", () => {
     expect(Array.isArray(payload.notes)).toBe(true);
     expect(payload.notes.length).toBeGreaterThan(0);
     expect(typeof payload.artifacts.text).toBe("string");
+    expect(Array.isArray(payload.structured?.bars)).toBe(true);
+  });
+
+  it("genera variantes desde el endpoint dedicado", async () => {
+    const { port } = await startServer();
+    const response = await fetch(`http://127.0.0.1:${port}/generate/variants`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        baseRequest: { progression: "| Dm9  G13 | C∆ |", key: "C" },
+        count: 2,
+      }),
+    });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(Array.isArray(payload.variants)).toBe(true);
+    expect(payload.variants.length).toBe(2);
+    expect(payload.variants[0].meta.seed).not.toBe(payload.variants[1].meta.seed);
   });
 
   it("devuelve errores estructurados para acordes desconocidos", async () => {
