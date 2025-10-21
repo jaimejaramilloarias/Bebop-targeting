@@ -92,7 +92,6 @@ export interface ContourOptions {
 export function createContourGenerator(options: ContourOptions = {}): ContourGenerator {
   const [rangeMin, rangeMax] = computeEffectiveRange(options.slider, options.minMidi ?? DEFAULT_MIN_MIDI, options.maxMidi ?? DEFAULT_MAX_MIDI);
   let lastMidi: number | null = options.startMidi ?? null;
-  let lastDegree: string | null = options.startDegree ?? null;
   let direction: 1 | -1 = 1;
   return {
     nextTarget(chordSymbol: string, profile: ChordProfile): ContourTarget {
@@ -143,7 +142,6 @@ export function createContourGenerator(options: ContourOptions = {}): ContourGen
         selectedDegree = sortedDegrees[0];
       }
       lastMidi = wrapMidiToRange(selectedMidi, rangeMin, rangeMax);
-      lastDegree = selectedDegree;
       if (lastMidi >= rangeMax - 2) {
         direction = -1;
       } else if (lastMidi <= rangeMin + 2) {

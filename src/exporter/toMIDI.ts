@@ -42,14 +42,14 @@ function encodeVariableLength(value: number): number[] {
     buffer <<= 8;
     buffer |= (value & 0x7f) | 0x80;
   }
-  while (true) {
+  let hasContinuation: boolean;
+  do {
     bytes.push(buffer & 0xff);
-    if (buffer & 0x80) {
+    hasContinuation = (buffer & 0x80) !== 0;
+    if (hasContinuation) {
       buffer >>= 8;
-    } else {
-      break;
     }
-  }
+  } while (hasContinuation);
   return bytes;
 }
 

@@ -35,6 +35,13 @@ export interface GeneratorResponse {
   structured: StructuredData;
 }
 
+export interface GeneratorMidiStream {
+  notes: ScheduledNote[];
+  meta: GeneratorMeta;
+  midiBinary: Uint8Array;
+  structured: StructuredData;
+}
+
 export interface GeneratorOptions {
   defaultTempoBpm?: number;
   defaultSwingRatio?: number;
@@ -103,32 +110,47 @@ function computeMeta(
   };
 }
 
-function createArtifacts(
+function createMidiBinary(
   request: SchedulerRequest,
   notes: readonly ScheduledNote[],
   meta: GeneratorMeta,
   options: GeneratorOptions,
-): GeneratorArtifacts {
-  const text = notesToText(notes);
-  const midiBinary = notesToMidi(notes, {
+): Uint8Array {
+  return notesToMidi(notes, {
     tempoBpm: request.tempo_bpm ?? options.defaultTempoBpm ?? DEFAULT_TEMPO_BPM,
     swing: Boolean(request.swing),
     swingRatio: meta.swingRatio ?? undefined,
     trackName: request.progression,
   });
-  const midiBase64 = Buffer.from(midiBinary).toString("base64");
+}
+
+function createArtifacts(
+  request: SchedulerRequest,
+  notes: readonly ScheduledNote[],
+  meta: GeneratorMeta,
+  options: GeneratorOptions,
+): { text: string; midiBinary: Uint8Array; musicXml: string } {
+  const text = notesToText(notes);
+  const midiBinary = createMidiBinary(request, notes, meta, options);
   const musicXml = notesToMusicXML(notes, {
     title: request.progression,
     swing: Boolean(request.swing),
     swingText: meta.swingRatio ? `Swing ${Math.round(meta.swingRatio * 100)}%` : undefined,
   });
-  return { text, midiBase64, musicXml };
+  return { text, midiBinary, musicXml };
 }
 
-export function generateFromRequest(
+interface InternalGenerationResult {
+  notes: ScheduledNote[];
+  meta: GeneratorMeta;
+  artifacts: { text: string; midiBinary: Uint8Array; musicXml: string };
+  structured: StructuredData;
+}
+
+function generateInternals(
   request: SchedulerRequest,
-  options: GeneratorOptions = {},
-): GeneratorResponse {
+  options: GeneratorOptions,
+): InternalGenerationResult {
   if (!request.progression || !request.progression.trim()) {
     throw new Error("La progresión es obligatoria");
   }
@@ -140,6 +162,33 @@ export function generateFromRequest(
   const artifacts = createArtifacts(request, notes, meta, options);
   const structured = buildStructuredData(request.progression, notes, meta.totalEighths);
   return { notes, meta, artifacts, structured };
+}
+
+export function generateFromRequest(
+  request: SchedulerRequest,
+  options: GeneratorOptions = {},
+): GeneratorResponse {
+  const { notes, meta, artifacts, structured } = generateInternals(request, options);
+  const midiBase64 = Buffer.from(artifacts.midiBinary).toString("base64");
+  return {
+    notes,
+    meta,
+    artifacts: { text: artifacts.text, midiBase64, musicXml: artifacts.musicXml },
+    structured,
+  };
+}
+
+export function generateMidiStream(
+  request: SchedulerRequest,
+  options: GeneratorOptions = {},
+): GeneratorMidiStream {
+  const { notes, meta, artifacts, structured } = generateInternals(request, options);
+  return {
+    notes,
+    meta,
+    midiBinary: artifacts.midiBinary,
+    structured,
+  };
 }
 
 export function createHttpResponse(

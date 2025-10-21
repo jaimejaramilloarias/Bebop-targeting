@@ -43,6 +43,7 @@ type ApiResponse = {
     midiBase64: string;
     musicXml: string;
   };
+  structured: StructuredData;
 };
 
 type ApiError = {
@@ -53,6 +54,7 @@ type ApiError = {
 const KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const DEFAULT_PROGRESSION = '| Dm9  G13 | C∆ |';
 const API_ENDPOINT = '/api/generate';
+const API_MIDI_ENDPOINT = '/api/generate/midi';
 
 type TimelineEntry = {
   label: string;
@@ -62,6 +64,32 @@ type TimelineEntry = {
 type DownloadUrls = {
   midi: string;
   musicXml: string;
+};
+
+type StructuredChordWindow = {
+  chordSymbol: string;
+  startEighth: number;
+  lengthEighths: number;
+};
+
+type StructuredBar = {
+  index: number;
+  startEighth: number;
+  lengthEighths: number;
+  chordWindows: StructuredChordWindow[];
+  notes: NotePreview[];
+  targets: NotePreview[];
+};
+
+type StructuredData = {
+  bars: StructuredBar[];
+  totalEighths: number;
+};
+
+type MidiOutputInfo = {
+  id: string;
+  label: string;
+  port: MIDIOutput;
 };
 
 function normalizeSymbol(raw: string): string {
@@ -127,6 +155,13 @@ function createAudioContext(): AudioContext | null {
     return null;
   }
   return new Ctor();
+}
+
+function isWebMidiSupported(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  return typeof navigator.requestMIDIAccess === 'function';
 }
 
 function midiToFrequency(midi: number): number {
@@ -196,6 +231,114 @@ function computeTimeline(meta: GeneratorMeta | null, notes: NotePreview[]): Time
   return entries;
 }
 
+const NOTE_COLORS: Record<NotePreview['src'], string> = {
+  approach: '#f59e0b',
+  target: '#2563eb',
+  isolated: '#10b981',
+  closure: '#ec4899',
+};
+
+const SCORE_CONFIG = {
+  width: 320,
+  height: 140,
+  paddingX: 32,
+  paddingY: 24,
+  minMidi: 60,
+  maxMidi: 84,
+};
+
+function ScorePreview({ structured }: { structured: StructuredData | null }) {
+  if (!structured || !structured.bars.length) {
+    return <div className="preview-empty">Genera una línea para ver la partitura.</div>;
+  }
+
+  const { width, height, paddingX, paddingY, minMidi, maxMidi } = SCORE_CONFIG;
+  const usableWidth = width - paddingX * 2;
+  const usableHeight = height - paddingY * 2;
+  const staffSpacing = usableHeight / 4;
+
+  const midiToY = (midi: number) => {
+    const clampedValue = clamp(midi, minMidi, maxMidi);
+    const ratio = (clampedValue - minMidi) / (maxMidi - minMidi || 1);
+    return height - paddingY - ratio * usableHeight;
+  };
+
+  return (
+    <div className="score-grid">
+      {structured.bars.map((bar) => (
+        <div key={bar.index} className="score-bar">
+          <div className="score-bar-header">
+            <span className="score-bar-index">Compás {bar.index + 1}</span>
+          </div>
+          <svg
+            className="score-canvas"
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label={`Compás ${bar.index + 1}`}
+          >
+            {[0, 1, 2, 3, 4].map((line) => {
+              const y = paddingY + staffSpacing * line;
+              return (
+                <line
+                  key={line}
+                  x1={paddingX - 12}
+                  y1={y}
+                  x2={width - paddingX + 12}
+                  y2={y}
+                  className="score-staff-line"
+                />
+              );
+            })}
+            {Array.from({ length: bar.lengthEighths + 1 }, (_, index) => {
+              const ratio = index / bar.lengthEighths;
+              const x = paddingX + ratio * usableWidth;
+              return (
+                <line
+                  key={`grid-${index}`}
+                  x1={x}
+                  y1={paddingY}
+                  x2={x}
+                  y2={height - paddingY}
+                  className={`score-grid-line${index % 2 === 0 ? ' strong' : ''}`}
+                />
+              );
+            })}
+            {bar.chordWindows.map((window) => {
+              const startRatio = (window.startEighth - bar.startEighth) / bar.lengthEighths;
+              const endRatio =
+                (window.startEighth + window.lengthEighths - bar.startEighth) / bar.lengthEighths;
+              const x = paddingX + ((startRatio + endRatio) / 2) * usableWidth;
+              return (
+                <text
+                  key={`${window.chordSymbol}-${window.startEighth}`}
+                  x={x}
+                  y={18}
+                  className="score-chord-label"
+                >
+                  {window.chordSymbol}
+                </text>
+              );
+            })}
+            {bar.notes.map((note, index) => {
+              const ratio = (note.t - bar.startEighth) / bar.lengthEighths;
+              const x = paddingX + ratio * usableWidth;
+              const y = midiToY(note.midi);
+              const color = NOTE_COLORS[note.src];
+              const radius = note.src === 'target' ? 7.5 : note.src === 'closure' ? 7 : 6;
+              return (
+                <g key={`${note.t}-${note.midi}-${index}`} className="score-note" transform={`translate(${x}, ${y})`}>
+                  <circle r={radius + 1.5} className="score-note-outline" />
+                  <circle r={radius} fill={color} />
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function parseSeed(value: string): number | undefined {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -240,6 +383,7 @@ export default function App() {
   });
   const [previewNotes, setPreviewNotes] = useState<NotePreview[]>([]);
   const [meta, setMeta] = useState<GeneratorMeta | null>(null);
+  const [structured, setStructured] = useState<StructuredData | null>(null);
   const [artifacts, setArtifacts] = useState<ApiResponse['artifacts'] | null>(null);
   const [downloadUrls, setDownloadUrls] = useState<DownloadUrls | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'previewed' | 'error'>('idle');
@@ -247,12 +391,38 @@ export default function App() {
   const [unknownChords, setUnknownChords] = useState<UnknownChordIssue[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioSupported = useMemo(isAudioSupported, []);
+  const webMidiSupported = useMemo(isWebMidiSupported, []);
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeNodesRef = useRef<{ oscillator: OscillatorNode; gain: GainNode }[]>([]);
   const stopTimerRef = useRef<number | null>(null);
+  const midiAccessRef = useRef<MIDIAccess | null>(null);
+  const midiOutputRef = useRef<MIDIOutput | null>(null);
+  const lastPayloadRef = useRef<SchedulerRequestPayload | null>(null);
+  const [midiEnabled, setMidiEnabled] = useState(false);
+  const [midiOutputs, setMidiOutputs] = useState<MidiOutputInfo[]>([]);
+  const [selectedMidiOutput, setSelectedMidiOutput] = useState<string | null>(null);
+  const [midiError, setMidiError] = useState<string | null>(null);
 
   const bars = useMemo(() => parseProgressionForUi(form.progression), [form.progression]);
   const timeline = useMemo(() => computeTimeline(meta, previewNotes), [meta, previewNotes]);
+
+  const refreshMidiOutputs = useCallback((access: MIDIAccess) => {
+    const outputs: MidiOutputInfo[] = [];
+    access.outputs.forEach((port) => {
+      outputs.push({
+        id: port.id,
+        label: port.name ?? port.id,
+        port,
+      });
+    });
+    setMidiOutputs(outputs);
+    setSelectedMidiOutput((current) => {
+      if (current && outputs.some((output) => output.id === current)) {
+        return current;
+      }
+      return outputs[0]?.id ?? null;
+    });
+  }, []);
 
   useEffect(() => {
     setDownloadUrls((current) => {
@@ -274,6 +444,50 @@ export default function App() {
     };
   }, [artifacts]);
 
+  const handleEnableMidi = useCallback(async () => {
+    if (!webMidiSupported || midiEnabled) {
+      return;
+    }
+    try {
+      setMidiError(null);
+      const access = await navigator.requestMIDIAccess?.({ sysex: false });
+      if (!access) {
+        setMidiError('No se pudo inicializar WebMIDI.');
+        return;
+      }
+      midiAccessRef.current = access;
+      refreshMidiOutputs(access);
+      access.onstatechange = () => refreshMidiOutputs(access);
+      setMidiEnabled(true);
+    } catch (error) {
+      console.error('No se pudo habilitar WebMIDI', error);
+      setMidiError('El navegador bloqueó el acceso a WebMIDI.');
+    }
+  }, [webMidiSupported, midiEnabled, refreshMidiOutputs]);
+
+  const handleRefreshMidiPorts = useCallback(() => {
+    if (midiAccessRef.current) {
+      refreshMidiOutputs(midiAccessRef.current);
+    }
+  }, [refreshMidiOutputs]);
+
+  useEffect(() => {
+    return () => {
+      if (midiAccessRef.current) {
+        midiAccessRef.current.onstatechange = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!midiEnabled) {
+      midiOutputRef.current = null;
+      return;
+    }
+    const next = midiOutputs.find((output) => output.id === selectedMidiOutput) ?? null;
+    midiOutputRef.current = next?.port ?? null;
+  }, [midiEnabled, midiOutputs, selectedMidiOutput]);
+
   const stopPlayback = useCallback(() => {
     if (stopTimerRef.current !== null) {
       window.clearTimeout(stopTimerRef.current);
@@ -291,6 +505,14 @@ export default function App() {
       }
     });
     activeNodesRef.current = [];
+    const midiPort = midiOutputRef.current;
+    if (midiPort) {
+      try {
+        midiPort.send([0xb0, 0x7b, 0x00]);
+      } catch (error) {
+        console.warn('No se pudo enviar All Notes Off al puerto MIDI', error);
+      }
+    }
     setIsPlaying(false);
   }, []);
 
@@ -349,6 +571,20 @@ export default function App() {
       oscillator.stop(now + event.end + 0.25);
       return { oscillator, gain };
     });
+    const midiPort = midiOutputRef.current;
+    if (midiPort) {
+      const timingBase = typeof window !== 'undefined' && window.performance ? window.performance.now() : Date.now();
+      playbackSchedule.forEach((event) => {
+        const startTimestamp = timingBase + (event.start + 0.05) * 1000;
+        const endTimestamp = timingBase + (event.end + 0.05) * 1000;
+        try {
+          midiPort.send([0x90, event.midi & 0x7f, 0x64], startTimestamp);
+          midiPort.send([0x80, event.midi & 0x7f, 0x40], endTimestamp);
+        } catch (error) {
+          console.warn('No se pudo enviar evento MIDI', error);
+        }
+      });
+    }
     if (activeNodesRef.current.length) {
       const totalDuration = playbackSchedule[playbackSchedule.length - 1].end;
       stopTimerRef.current = window.setTimeout(() => {
@@ -387,12 +623,15 @@ export default function App() {
       setPreviewNotes([]);
       setMeta(null);
       setArtifacts(null);
+      setStructured(null);
 
       try {
         const response = await requestPreview(payload);
         setPreviewNotes(response.notes);
         setMeta(response.meta);
         setArtifacts(response.artifacts);
+        setStructured(response.structured ?? null);
+        lastPayloadRef.current = payload;
         if (typeof nextSeed === 'string') {
           setForm((current) => ({ ...current, seed: nextSeed }));
         }
@@ -401,6 +640,7 @@ export default function App() {
         const apiError = error as ApiError;
         setErrorMessage(apiError.message ?? 'No se pudo generar la previsualización');
         setUnknownChords(apiError.issues ?? []);
+        setStructured(null);
         setStatus('error');
       }
     },
@@ -425,10 +665,12 @@ export default function App() {
     });
     setPreviewNotes([]);
     setMeta(null);
+    setStructured(null);
     setArtifacts(null);
     setErrorMessage(null);
     setUnknownChords([]);
     setStatus('idle');
+    lastPayloadRef.current = null;
   };
 
   const handleRegenerate = async () => {
@@ -439,6 +681,34 @@ export default function App() {
     const payload = buildPayload(newSeed);
     await generatePreview(payload, String(newSeed));
   };
+
+  const handleDownloadMidiStream = useCallback(async () => {
+    if (!lastPayloadRef.current) {
+      return;
+    }
+    try {
+      const response = await fetch(API_MIDI_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lastPayloadRef.current)
+      });
+      if (!response.ok) {
+        throw new Error(`Respuesta inesperada: ${response.status}`);
+      }
+      const blob = new Blob([await response.arrayBuffer()], { type: 'audio/midi' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'bebop-targeting-stream.mid';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('No se pudo descargar el MIDI en streaming', error);
+      setErrorMessage('No se pudo descargar el MIDI en streaming.');
+    }
+  }, []);
 
   const isLoading = status === 'loading';
 
@@ -637,8 +907,39 @@ export default function App() {
                     Tempo {Math.round(playbackTempo)} BPM
                     {playbackSwingRatio !== null ? ` · Swing ${(playbackSwingRatio * 100).toFixed(0)}%` : ' · Recto'}
                   </span>
+                  {webMidiSupported ? (
+                    <div className="midi-controls">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={midiEnabled ? handleRefreshMidiPorts : handleEnableMidi}
+                      >
+                        {midiEnabled ? 'Actualizar puertos MIDI' : 'Conectar WebMIDI'}
+                      </button>
+                      {midiEnabled ? (
+                        midiOutputs.length ? (
+                          <select
+                            value={selectedMidiOutput ?? ''}
+                            onChange={(event) => setSelectedMidiOutput(event.target.value || null)}
+                            aria-label="Seleccionar salida MIDI"
+                          >
+                            {midiOutputs.map((output) => (
+                              <option key={output.id} value={output.id}>
+                                {output.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="playback-meta muted">Sin salidas MIDI disponibles.</span>
+                        )
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="playback-meta muted">WebMIDI no soportado.</span>
+                  )}
                 </div>
               ) : null}
+              {midiError ? <div className="alert error">{midiError}</div> : null}
               {status === 'idle' ? (
                 <div className="preview-empty">
                   Completa los parámetros y pulsa «Previsualizar» para simular el scheduler.
@@ -677,6 +978,11 @@ export default function App() {
               )}
             </div>
 
+            <div className="preview-card">
+              <h3>Vista de partitura / tablatura</h3>
+              <ScorePreview structured={structured} />
+            </div>
+
             {meta && artifacts ? (
               <div className="preview-card">
                 <h3>Exportadores</h3>
@@ -689,6 +995,14 @@ export default function App() {
                   >
                     Descargar MIDI
                   </a>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={handleDownloadMidiStream}
+                    disabled={!lastPayloadRef.current}
+                  >
+                    Descargar MIDI (stream)
+                  </button>
                   <a
                     className="secondary"
                     href={downloadUrls?.musicXml}

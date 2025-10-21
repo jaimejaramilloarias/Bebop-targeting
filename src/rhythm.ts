@@ -16,7 +16,7 @@ function getLandingOptions(window: ChordWindow): number[] {
   return LANDING_OPTIONS_BY_LENGTH[window.lengthEighths] ?? [1, 3, 5, 7];
 }
 
-function pickLanding(window: ChordWindow, formulaLength: number): number {
+function pickLanding(window: ChordWindow): number {
   const options = getLandingOptions(window);
   if (!options.length) {
     return window.startEighth + 1;
@@ -28,7 +28,7 @@ export function computeRhythmPlacement(window: ChordWindow, formulaLength: numbe
   if (formulaLength <= 0) {
     throw new Error("La fórmula debe tener al menos una nota (el target)");
   }
-  const landing = pickLanding(window, formulaLength);
+  const landing = pickLanding(window);
   const approachStart = landing - (formulaLength - 1);
   const parity = Math.abs(approachStart % 2);
   const needsIsolated = parity === 1;

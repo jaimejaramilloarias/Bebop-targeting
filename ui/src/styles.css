@@ -323,6 +323,17 @@ a.secondary:not([aria-disabled='true']):hover {
   font-weight: 600;
 }
 
+.midi-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.midi-controls select {
+  min-width: 180px;
+}
+
 .text-preview {
   margin-top: 1rem;
   border-radius: 12px;
@@ -341,4 +352,67 @@ details > summary {
   cursor: pointer;
   font-weight: 600;
   margin-bottom: 0.5rem;
+}
+
+.score-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.score-bar {
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 0.75rem;
+}
+
+.score-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.score-bar-index {
+  font-weight: 600;
+  color: #312e81;
+}
+
+.score-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.score-staff-line {
+  stroke: rgba(15, 23, 42, 0.25);
+  stroke-width: 1;
+}
+
+.score-grid-line {
+  stroke: rgba(67, 56, 202, 0.12);
+  stroke-width: 0.75;
+}
+
+.score-grid-line.strong {
+  stroke: rgba(67, 56, 202, 0.28);
+}
+
+.score-chord-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  fill: #4338ca;
+  text-anchor: middle;
+}
+
+.score-note-outline {
+  fill: rgba(15, 23, 42, 0.85);
+}
+
+.score-note circle {
+  transition: transform 0.2s ease;
+}
+
+.score-note:hover circle:last-child {
+  transform: scale(1.12);
 }
