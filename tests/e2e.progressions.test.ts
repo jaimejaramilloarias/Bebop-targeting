@@ -56,4 +56,17 @@ describe("end-to-end progressions", () => {
     expect(chordNames).toContain("Gm7");
     expect(chordNames).toContain("C7");
   });
+
+  it("genera aproximaciones para cada cifrado provisto", () => {
+    const progression = "| Fm7 Bb7 | Ebmaj7 |";
+    const response = generateFromRequest(makeRequest(progression, 77));
+    const chordSymbols = new Set(
+      response.structured.bars.flatMap(bar => bar.chordWindows.map(window => window.chordSymbol)),
+    );
+    expect(chordSymbols.size).toBeGreaterThan(0);
+    const approachNotes = response.notes.filter(note => note.src === "approach" && Boolean(note.chord));
+    expect(approachNotes.length).toBeGreaterThan(0);
+    const chordsWithApproach = new Set(approachNotes.map(note => note.chord!));
+    expect(chordsWithApproach).toEqual(chordSymbols);
+  });
 });

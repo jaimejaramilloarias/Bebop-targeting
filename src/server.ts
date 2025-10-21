@@ -25,6 +25,15 @@ const JSON_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+const GENERATE_ROUTES = new Set(["/generate", "/api/generate"]);
+const GENERATE_MIDI_ROUTES = new Set(["/generate/midi", "/api/generate/midi"]);
+const GENERATE_VARIANTS_ROUTES = new Set(["/generate/variants", "/api/generate/variants"]);
+const KNOWN_ROUTES = new Set([
+  ...GENERATE_ROUTES,
+  ...GENERATE_MIDI_ROUTES,
+  ...GENERATE_VARIANTS_ROUTES,
+]);
+
 const MIDI_HEADERS = {
   "Content-Type": "audio/midi",
   "Access-Control-Allow-Origin": "*",
@@ -35,6 +44,20 @@ function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown
   const body = JSON.stringify(payload, null, 2);
   res.writeHead(statusCode, JSON_HEADERS);
   res.end(body);
+}
+
+function normalizeRequestPath(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl, "http://localhost");
+    const trimmed = url.pathname.replace(/\/+$/u, "");
+    return trimmed || "/";
+  } catch {
+    const [path] = rawUrl.split("?");
+    if (!path) {
+      return "/";
+    }
+    return path.replace(/\/+$/u, "") || "/";
+  }
 }
 
 async function readRequestBody(req: http.IncomingMessage): Promise<string> {
@@ -127,21 +150,29 @@ export function createApiServer(options: ServerOptions = {}): http.Server {
         sendJson(res, 404, { message: "Ruta no especificada" });
         return;
       }
+      const path = normalizeRequestPath(req.url);
+      const isKnownRoute = KNOWN_ROUTES.has(path);
       if (req.method === "OPTIONS") {
         res.writeHead(204, JSON_HEADERS);
         res.end();
         return;
       }
+      if (req.method !== "POST") {
+        const status = isKnownRoute ? 405 : 404;
+        const message = status === 405 ? "Método no permitido" : "Ruta no encontrada";
+        sendJson(res, status, { message });
+        return;
+      }
       if (req.method === "POST") {
-        if (req.url === "/generate") {
+        if (GENERATE_ROUTES.has(path)) {
           await handleGenerate(req, res, options.generator);
           return;
         }
-        if (req.url === "/generate/midi") {
+        if (GENERATE_MIDI_ROUTES.has(path)) {
           await handleGenerateMidi(req, res, options.generator);
           return;
         }
-        if (req.url === "/generate/variants") {
+        if (GENERATE_VARIANTS_ROUTES.has(path)) {
           await handleGenerateVariants(req, res, options.generator);
           return;
         }
