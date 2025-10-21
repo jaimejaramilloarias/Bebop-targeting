@@ -15,6 +15,8 @@ describe("API helpers", () => {
     expect(response.artifacts.text).toMatch(/target/);
     expect(response.meta.totalBars).toBeGreaterThanOrEqual(1);
     expect(response.meta.seed).toBe(123);
+    expect(response.structured.bars.length).toBe(response.meta.totalBars);
+    expect(response.structured.bars[0]?.chordWindows[0]?.chordSymbol).toBe("Dm9");
     const midiBuffer = Buffer.from(response.artifacts.midiBase64, "base64");
     expect(midiBuffer.length).toBeGreaterThan(32);
     expect(response.artifacts.musicXml).toContain("<score-partwise");

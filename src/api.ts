@@ -10,6 +10,7 @@ import {
   type ScheduledNote,
 } from "./scheduler.js";
 import { assertKnownChords } from "./validation.js";
+import { buildStructuredData, type StructuredData } from "./structure.js";
 
 export interface GeneratorMeta {
   progression: string;
@@ -31,6 +32,7 @@ export interface GeneratorResponse {
   notes: ScheduledNote[];
   meta: GeneratorMeta;
   artifacts: GeneratorArtifacts;
+  structured: StructuredData;
 }
 
 export interface GeneratorOptions {
@@ -38,10 +40,22 @@ export interface GeneratorOptions {
   defaultSwingRatio?: number;
 }
 
+export interface GeneratorVariant extends GeneratorResponse {}
+
+export interface GeneratorVariantsResponse {
+  variants: GeneratorVariant[];
+}
+
+export interface GeneratorVariantsRequest {
+  baseRequest: SchedulerRequest;
+  count?: number;
+  seeds?: number[];
+}
+
 const DEFAULT_TEMPO_BPM = 180;
 const DEFAULT_SWING_RATIO = 2 / 3;
 
-function normalizeSeed(rawSeed: number | undefined): number {
+export function normalizeSeed(rawSeed: number | undefined): number {
   if (rawSeed === undefined) {
     return Math.floor(Date.now() % 0xffffffff);
   }
@@ -124,7 +138,8 @@ export function generateFromRequest(
   const notes = scheduleRequest(request, context);
   const meta = computeMeta(request, notes, seed, options);
   const artifacts = createArtifacts(request, notes, meta, options);
-  return { notes, meta, artifacts };
+  const structured = buildStructuredData(request.progression, notes, meta.totalEighths);
+  return { notes, meta, artifacts, structured };
 }
 
 export function createHttpResponse(
@@ -132,6 +147,58 @@ export function createHttpResponse(
   options: GeneratorOptions = {},
 ): GeneratorResponse {
   return generateFromRequest(request, options);
+}
+
+function normalizeVariantCount(count: number | undefined): number {
+  if (count === undefined) {
+    return 2;
+  }
+  if (!Number.isInteger(count) || count <= 0) {
+    throw new Error("El número de variantes debe ser un entero positivo");
+  }
+  return count;
+}
+
+function sanitizeSeeds(seeds: number[] | undefined, count: number): number[] | null {
+  if (!seeds) {
+    return null;
+  }
+  if (!Array.isArray(seeds)) {
+    throw new Error("seeds debe ser un arreglo de números");
+  }
+  if (seeds.length !== count) {
+    throw new Error("La cantidad de seeds debe coincidir con el número de variantes");
+  }
+  return seeds.map(seed => {
+    if (!Number.isFinite(seed)) {
+      throw new Error("Cada seed debe ser un número finito");
+    }
+    return Math.trunc(seed);
+  });
+}
+
+export function generateVariantsFromRequest(
+  payload: GeneratorVariantsRequest,
+  options: GeneratorOptions = {},
+): GeneratorVariantsResponse {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Se requiere un payload con baseRequest");
+  }
+  const { baseRequest } = payload;
+  if (!baseRequest || typeof baseRequest !== "object") {
+    throw new Error("baseRequest es obligatorio");
+  }
+  const count = normalizeVariantCount(payload.count);
+  const providedSeeds = sanitizeSeeds(payload.seeds, count);
+  const seeds = providedSeeds ?? (() => {
+    const baseSeed = normalizeSeed(baseRequest.seed);
+    return Array.from({ length: count }, (_, index) => baseSeed + index);
+  })();
+  const variants = seeds.map(seed => {
+    const request = { ...baseRequest, seed };
+    return generateFromRequest(request, options);
+  });
+  return { variants };
 }
 
 export type { SchedulerRequest } from "./scheduler.js";
