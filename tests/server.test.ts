@@ -48,6 +48,20 @@ describe("HTTP API", () => {
     expect(Array.isArray(payload.structured?.bars)).toBe(true);
   });
 
+  it("permite descargar un MIDI binario reproducible", async () => {
+    const { port } = await startServer();
+    const response = await fetch(`http://127.0.0.1:${port}/generate/midi`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ progression: "| Dm9  G13 | C∆ |", key: "C", seed: 42 }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("audio/midi");
+    const buffer = Buffer.from(await response.arrayBuffer());
+    expect(buffer.length).toBeGreaterThan(16);
+    expect(buffer.subarray(0, 4).toString("ascii")).toBe("MThd");
+  });
+
   it("genera variantes desde el endpoint dedicado", async () => {
     const { port } = await startServer();
     const response = await fetch(`http://127.0.0.1:${port}/generate/variants`, {

@@ -1,7 +1,9 @@
 import http from "node:http";
 import {
   createHttpResponse,
+  generateMidiStream,
   generateVariantsFromRequest,
+  type GeneratorMidiStream,
   type GeneratorOptions,
   type GeneratorResponse,
   type GeneratorVariantsRequest,
@@ -21,6 +23,12 @@ const JSON_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
+};
+
+const MIDI_HEADERS = {
+  "Content-Type": "audio/midi",
+  "Access-Control-Allow-Origin": "*",
+  "Cache-Control": "no-cache, no-store, must-revalidate",
 };
 
 function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown): void {
@@ -63,6 +71,20 @@ function toErrorResponse(error: unknown): { message: string; issues?: UnknownCho
   return { message: String(error) };
 }
 
+function sendMidi(
+  res: http.ServerResponse,
+  payload: GeneratorMidiStream,
+  filename = "bebop-targeting.mid",
+): void {
+  const buffer = Buffer.from(payload.midiBinary);
+  res.writeHead(200, {
+    ...MIDI_HEADERS,
+    "Content-Length": buffer.byteLength,
+    "Content-Disposition": `attachment; filename="${filename}"`,
+  });
+  res.end(buffer);
+}
+
 async function handleGenerate(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -72,6 +94,19 @@ async function handleGenerate(
   const request = parseRequestBody(body);
   const response: GeneratorResponse = createHttpResponse(request, options);
   sendJson(res, 200, response);
+}
+
+async function handleGenerateMidi(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  options: GeneratorOptions | undefined,
+): Promise<void> {
+  const body = await readRequestBody(req);
+  const request = parseRequestBody(body);
+  const response = generateMidiStream(request, options);
+  const safeProgression = request.progression?.replace(/[^A-Za-z0-9_-]+/g, "-") ?? "bebop";
+  const filename = `${safeProgression || "bebop"}.mid`;
+  sendMidi(res, response, filename);
 }
 
 async function handleGenerateVariants(
@@ -100,6 +135,10 @@ export function createApiServer(options: ServerOptions = {}): http.Server {
       if (req.method === "POST") {
         if (req.url === "/generate") {
           await handleGenerate(req, res, options.generator);
+          return;
+        }
+        if (req.url === "/generate/midi") {
+          await handleGenerateMidi(req, res, options.generator);
           return;
         }
         if (req.url === "/generate/variants") {

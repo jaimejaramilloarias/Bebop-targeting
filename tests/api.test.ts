@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateFromRequest } from "../src/api.js";
+import { generateFromRequest, generateMidiStream } from "../src/api.js";
 import { UnknownChordError } from "../src/validation.js";
 
 describe("API helpers", () => {
@@ -26,5 +26,14 @@ describe("API helpers", () => {
     expect(() =>
       generateFromRequest({ key: "C", progression: "| Cmaj7 | H13 |" }),
     ).toThrow(UnknownChordError);
+  });
+
+  it("produce la misma data MIDI para streaming y artefactos base64", () => {
+    const request = { key: "C", progression: "| Dm9  G13 | C∆ |", seed: 77 } as const;
+    const response = generateFromRequest(request);
+    const stream = generateMidiStream(request);
+    const artifactBuffer = Buffer.from(response.artifacts.midiBase64, "base64");
+    expect(Buffer.compare(artifactBuffer, Buffer.from(stream.midiBinary))).toBe(0);
+    expect(stream.meta.seed).toBe(response.meta.seed);
   });
 });

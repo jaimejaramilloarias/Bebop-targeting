@@ -6,6 +6,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "lint": "eslint . --ext .ts,.tsx",
     "dev:ui": "npm --prefix ui run dev",
     "build:ui": "npm --prefix ui run build",
     "prestart:api": "npm run build",
@@ -15,7 +16,13 @@
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
-    "typescript": "^5.4.5",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "typescript": "5.5.4",
     "vitest": "^1.5.0"
   }
 }

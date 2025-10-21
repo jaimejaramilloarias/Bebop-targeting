@@ -12,15 +12,19 @@ Generado el 2025-10-21T01:29:31.
 
 ## Desarrollo
 1. Instalar dependencias con `npm install`.
-2. Ejecutar las pruebas con `npm test`.
-3. Levantar el servidor HTTP con `npm run start:api` para exponer `POST /api/generate`.
-4. Seguir `agents.md` y `engine.md` para completar los módulos restantes (contour, rhythm, targeting, etc.).
+2. Ejecutar el análisis estático con `npm run lint` y las pruebas con `npm test`.
+3. Levantar el servidor HTTP con `npm run start:api` para exponer los endpoints `/api/generate`, `/api/generate/midi` y `/api/generate/variants`.
+4. Seguir `agents.md` y `engine.md` para completar o extender los módulos del motor.
 
 ### CLI y API
-- `npm run start:api` → compila el paquete y arranca el endpoint JSON (por defecto en `http://localhost:4000`).
+- `npm run start:api` → compila el paquete y arranca el servicio (por defecto en `http://localhost:4000`).
 - `npm run cli -- --progression "| Dm9  G13 | C∆ |" --seed 42 --swing` → genera notas y las imprime en texto.
 
-El endpoint responde con notas, metadatos y exportaciones en texto/MIDI/MusicXML.
+Endpoints disponibles:
+
+- `POST /api/generate` → respuesta JSON con notas, metadatos, artefactos (texto, MIDI base64, MusicXML) y datos estructurados por compás.
+- `POST /api/generate/midi` → devuelve directamente un binario MIDI reproducible (cabecera `audio/midi`).
+- `POST /api/generate/variants` → recibe `baseRequest`, `count` y opcionalmente `seeds` para obtener múltiples variantes en una sola llamada.
 
 ### UI web
 La UI React vive en `ui/` y está lista para ejecutarse tanto en local como desde GitHub Pages:
@@ -28,6 +32,13 @@ La UI React vive en `ui/` y está lista para ejecutarse tanto en local como desd
 1. Instala sus dependencias con `npm install --prefix ui`.
 2. Arranca el servidor de desarrollo con `npm run dev:ui`.
 3. Abre [http://localhost:5173](http://localhost:5173) y verifica que cargue la interfaz.
+
+Características destacadas de la UI:
+
+- Previsualización textual y tabla de roles (`approach/target/isolated/closure`).
+- Reproducción en WebAudio sincronizada con WebMIDI, incluyendo selector de puerto de salida y botón para refrescar dispositivos conectados.
+- Vista de partitura/tablatura en SVG basada en los datos estructurados del motor.
+- Descarga de artefactos (texto, MIDI, MusicXML) y botón adicional para solicitar el MIDI directamente desde el endpoint de streaming.
 
 Cuando necesites actualizar la versión publicada, ejecuta `npm --prefix ui run build`. El artefacto se genera en `docs/`, lo que permite servir la app directamente desde [`https://<tu-usuario>.github.io/Bebop-targeting/`](https://<tu-usuario>.github.io/Bebop-targeting/) usando GitHub Pages.
 
