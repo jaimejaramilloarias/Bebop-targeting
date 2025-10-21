@@ -23,7 +23,7 @@ export interface SchedulerContext {
   contour?: ContourGenerator;
 }
 
-interface ScheduledNote extends Note {
+export interface ScheduledNote extends Note {
   src: NoteSource;
 }
 
@@ -42,7 +42,11 @@ function selectFormula(profile: ChordProfile, target: ContourTarget, rng: Random
   if (!targetInfo) {
     throw new Error(`El perfil no contiene información para el grado ${target.degree}`);
   }
-  const formulasCollection = getFormulas(targetInfo.type);
+  const tipo = targetInfo.type;
+  if (tipo !== 1 && tipo !== 2) {
+    throw new Error(`No hay fórmulas disponibles para el grado ${target.degree} (tipo ${String(tipo)})`);
+  }
+  const formulasCollection = getFormulas(tipo);
   const formulas = flattenFormulas(formulasCollection);
   if (!formulas.length) {
     throw new Error(`No hay fórmulas disponibles para el tipo ${targetInfo.type}`);

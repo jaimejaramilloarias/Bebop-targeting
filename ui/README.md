@@ -18,6 +18,16 @@ La interfaz web está construida con React + Vite y sirve como front-end del mot
 - `src/main.tsx`: punto de entrada de React.
 - `src/styles.css`: estilos base.
 
-## Próximos pasos
-- Conectar la UI con el motor cuando el scheduler esté disponible.
-- Añadir descarga de MIDI/MusicXML desde los exportadores del backend.
+## Flujo actual
+- El formulario envía las peticiones al endpoint local `POST /api/generate` (ver sección Backend).
+- La tabla muestra la secuencia generada por el scheduler con roles y acordes.
+- Es posible descargar la exportación en formato MIDI y MusicXML o visualizar el texto plano.
+
+## Backend necesario
+Para que la UI funcione debe estar encendido el servidor HTTP del motor:
+
+```bash
+npm run start:api
+```
+
+Este comando compila el paquete raíz y levanta el endpoint en `http://localhost:4000`. Durante el desarrollo, Vite proxya automáticamente las peticiones realizadas a `/api`.

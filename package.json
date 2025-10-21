@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dev:ui": "npm --prefix ui run dev",
-    "build:ui": "npm --prefix ui run build"
+    "build:ui": "npm --prefix ui run build",
+    "prestart:api": "npm run build",
+    "start:api": "node dist/server.js",
+    "precli": "npm run build",
+    "cli": "node dist/cli.js"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

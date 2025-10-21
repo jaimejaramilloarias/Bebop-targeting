@@ -18,13 +18,13 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 - ✅ Entregar exportador textual con metadatos opcionales (`src/exporter/toText.ts`).
 - ✅ Implementar exportador MIDI con soporte básico de swing.
 - ✅ Implementar exportador MusicXML con compases 4/4.
-- ⬜️ Diseñar API HTTP/CLI para consumir el generador desde UI externa.
+- ✅ Diseñar API HTTP/CLI para consumir el generador desde UI externa.
 
 ## UI y experiencia de usuario
-- ⬜️ Prototipo de UI web: selector de progresión, seed y slider de contorno.
-- ⬜️ Integrar previsualización textual en la UI usando el exportador.
-- ⬜️ Añadir controles para descargar MIDI/MusicXML.
-- ⬜️ Conectar la UI con los helpers de validación para alertar acordes desconocidos.
+- ✅ Prototipo de UI web: selector de progresión, seed y slider de contorno.
+- ✅ Integrar previsualización textual en la UI usando el exportador.
+- ✅ Añadir controles para descargar MIDI/MusicXML.
+- ✅ Conectar la UI con los helpers de validación para alertar acordes desconocidos.
 - ⬜️ Implementar previsualización de audio MIDI en la UI (render en WebAudio con swing opcional).
 - ⬜️ Añadir botón de "Regenerar" que solicite nuevas variantes al motor manteniendo/alterando seed.
 - ⬜️ Exponer selector de puerto mediante WebMIDI para enrutar la reproducción hacia plugins externos.

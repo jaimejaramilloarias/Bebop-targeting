@@ -1,0 +1,62 @@
+import { afterEach, describe, expect, it } from "vitest";
+import type { AddressInfo } from "node:net";
+import { createApiServer } from "../src/server.js";
+
+const activeServers: import("node:http").Server[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    activeServers.splice(0).map(
+      server =>
+        new Promise<void>((resolve, reject) => {
+          server.close(error => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        }),
+    ),
+  );
+});
+
+async function startServer() {
+  const server = createApiServer();
+  await new Promise<void>((resolve, reject) => {
+    server.listen(0, "127.0.0.1", () => resolve());
+    server.once("error", reject);
+  });
+  activeServers.push(server);
+  const address = server.address() as AddressInfo;
+  return { server, port: address.port };
+}
+
+describe("HTTP API", () => {
+  it("responde con notas generadas", async () => {
+    const { port } = await startServer();
+    const response = await fetch(`http://127.0.0.1:${port}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ progression: "| Dm9  G13 | C∆ |", key: "C", seed: 99 }),
+    });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(Array.isArray(payload.notes)).toBe(true);
+    expect(payload.notes.length).toBeGreaterThan(0);
+    expect(typeof payload.artifacts.text).toBe("string");
+  });
+
+  it("devuelve errores estructurados para acordes desconocidos", async () => {
+    const { port } = await startServer();
+    const response = await fetch(`http://127.0.0.1:${port}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ progression: "| Zmaj7 |", key: "C" }),
+    });
+    expect(response.status).toBe(422);
+    const payload = await response.json();
+    expect(payload.issues).toBeTruthy();
+    expect(payload.issues[0].chordSymbol).toBe("Zmaj7");
+  });
+});

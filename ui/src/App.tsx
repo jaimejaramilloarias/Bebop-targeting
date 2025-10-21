@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 type NotePreview = {
   t: number;
@@ -19,18 +19,50 @@ type FormState = {
   seed: string;
 };
 
+type UnknownChordIssue = {
+  chordSymbol: string;
+  index: number;
+  message: string;
+};
+
+type GeneratorMeta = {
+  progression: string;
+  totalEighths: number;
+  totalBars: number;
+  tempo_bpm?: number;
+  swing?: boolean;
+  swingRatio: number | null;
+  seed: number;
+};
+
+type ApiResponse = {
+  notes: NotePreview[];
+  meta: GeneratorMeta;
+  artifacts: {
+    text: string;
+    midiBase64: string;
+    musicXml: string;
+  };
+};
+
+type ApiError = {
+  message: string;
+  issues?: UnknownChordIssue[];
+};
+
 const KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const DEFAULT_PROGRESSION = '| Dm9  G13 | C∆ |';
+const API_ENDPOINT = '/api/generate';
 
-const SAMPLE_NOTES: NotePreview[] = [
-  { t: 1, dur: 1, midi: 64, pitch: 'E4', src: 'target', chord: 'Dm9', degree: '3' },
-  { t: 2, dur: 1, midi: 63, pitch: 'Eb4', src: 'approach', chord: 'G13' },
-  { t: 5, dur: 1, midi: 66, pitch: 'F#4', src: 'approach', chord: 'G13' },
-  { t: 7, dur: 1, midi: 67, pitch: 'G4', src: 'target', chord: 'G13', degree: '1' },
-  { t: 9, dur: 1, midi: 71, pitch: 'B4', src: 'approach', chord: 'Cmaj7' },
-  { t: 11, dur: 1, midi: 72, pitch: 'C5', src: 'target', chord: 'Cmaj7', degree: '1' },
-  { t: 12, dur: 2, midi: 69, pitch: 'A4', src: 'closure' }
-];
+type TimelineEntry = {
+  label: string;
+  value: string;
+};
+
+type DownloadUrls = {
+  midi: string;
+  musicXml: string;
+};
 
 function normalizeSymbol(raw: string): string {
   return raw
@@ -64,23 +96,72 @@ function parseProgressionForUi(input: string): ProgressionBar[] {
   });
 }
 
-function formatTimeline(notes: NotePreview[]): { label: string; value: string }[] {
-  if (!notes.length) {
+function base64ToBlob(base64: string, mime: string): Blob {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
+function computeTimeline(meta: GeneratorMeta | null, notes: NotePreview[]): TimelineEntry[] {
+  if (!meta || !notes.length) {
     return [];
   }
 
-  const totalEighths = notes.reduce((max, note) => Math.max(max, note.t + note.dur), 0);
-  const totalBars = Math.ceil(totalEighths / 8);
-
-  return [
-    { label: 'Corcheas totales', value: String(totalEighths) },
-    { label: 'Compases estimados', value: `${totalBars} × 4/4` },
-    {
-      label: 'Último evento',
-      value: `t=${notes[notes.length - 1].t} (${notes[notes.length - 1].src})`
-    }
+  const entries: TimelineEntry[] = [
+    { label: 'Corcheas totales', value: String(meta.totalEighths) },
+    { label: 'Compases estimados', value: `${meta.totalBars} × 4/4` },
+    { label: 'Seed', value: String(meta.seed) }
   ];
+
+  if (meta.tempo_bpm) {
+    entries.push({ label: 'Tempo', value: `${meta.tempo_bpm} BPM` });
+  }
+
+  if (typeof meta.swing === 'boolean') {
+    entries.push({ label: 'Swing', value: meta.swing ? 'Activado' : 'Recto' });
+  }
+
+  const lastNote = notes[notes.length - 1];
+  entries.push({ label: 'Último evento', value: `t=${lastNote.t} (${lastNote.src})` });
+
+  return entries;
 }
+
+function parseSeed(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+async function requestPreview(payload: SchedulerRequestPayload): Promise<ApiResponse> {
+  const response = await fetch(API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const error: ApiError = await response.json().catch(() => ({ message: 'Error desconocido' }));
+    throw error;
+  }
+
+  return (await response.json()) as ApiResponse;
+}
+
+type SchedulerRequestPayload = {
+  key: string;
+  progression: string;
+  tempo_bpm?: number;
+  swing?: boolean;
+  contour_slider?: number;
+  seed?: number;
+};
 
 export default function App() {
   const [form, setForm] = useState<FormState>({
@@ -92,19 +173,77 @@ export default function App() {
     seed: '20240601'
   });
   const [previewNotes, setPreviewNotes] = useState<NotePreview[]>([]);
-  const [status, setStatus] = useState<'idle' | 'previewed'>('idle');
+  const [meta, setMeta] = useState<GeneratorMeta | null>(null);
+  const [artifacts, setArtifacts] = useState<ApiResponse['artifacts'] | null>(null);
+  const [downloadUrls, setDownloadUrls] = useState<DownloadUrls | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'previewed' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unknownChords, setUnknownChords] = useState<UnknownChordIssue[]>([]);
 
   const bars = useMemo(() => parseProgressionForUi(form.progression), [form.progression]);
-  const timeline = useMemo(() => formatTimeline(previewNotes), [previewNotes]);
+  const timeline = useMemo(() => computeTimeline(meta, previewNotes), [meta, previewNotes]);
+
+  useEffect(() => {
+    setDownloadUrls((current) => {
+      if (current) {
+        URL.revokeObjectURL(current.midi);
+        URL.revokeObjectURL(current.musicXml);
+      }
+      return null;
+    });
+    if (!artifacts) {
+      return;
+    }
+    const midiUrl = URL.createObjectURL(base64ToBlob(artifacts.midiBase64, 'audio/midi'));
+    const musicXmlUrl = URL.createObjectURL(new Blob([artifacts.musicXml], { type: 'application/xml' }));
+    setDownloadUrls({ midi: midiUrl, musicXml: musicXmlUrl });
+    return () => {
+      URL.revokeObjectURL(midiUrl);
+      URL.revokeObjectURL(musicXmlUrl);
+    };
+  }, [artifacts]);
 
   const handleChange = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setPreviewNotes(SAMPLE_NOTES);
-    setStatus('previewed');
+    setStatus('loading');
+    setErrorMessage(null);
+    setUnknownChords([]);
+    setPreviewNotes([]);
+    setMeta(null);
+    setArtifacts(null);
+
+    const payload: SchedulerRequestPayload = {
+      key: form.key,
+      progression: form.progression,
+      swing: form.swing,
+      contour_slider: form.contour
+    };
+
+    if (form.tempo > 0) {
+      payload.tempo_bpm = form.tempo;
+    }
+
+    const seed = parseSeed(form.seed);
+    if (seed !== undefined) {
+      payload.seed = seed;
+    }
+
+    try {
+      const response = await requestPreview(payload);
+      setPreviewNotes(response.notes);
+      setMeta(response.meta);
+      setArtifacts(response.artifacts);
+      setStatus('previewed');
+    } catch (error) {
+      const apiError = error as ApiError;
+      setErrorMessage(apiError.message ?? 'No se pudo generar la previsualización');
+      setUnknownChords(apiError.issues ?? []);
+      setStatus('error');
+    }
   };
 
   const handleReset = () => {
@@ -117,8 +256,14 @@ export default function App() {
       seed: '20240601'
     });
     setPreviewNotes([]);
+    setMeta(null);
+    setArtifacts(null);
+    setErrorMessage(null);
+    setUnknownChords([]);
     setStatus('idle');
   };
+
+  const isLoading = status === 'loading';
 
   return (
     <div className="app">
@@ -126,8 +271,7 @@ export default function App() {
         <h1 className="header-title">Bebop Targeting Studio</h1>
         <p className="header-subtitle">
           Diseña, visualiza y exporta líneas bebop con enfoque en <em>targeting</em>. Configura la
-          progresión, controla el contorno melódico y visualiza una pre-escucha de la secuencia de
-          notas antes de conectarla con el motor rítmico.
+          progresión, controla el contorno melódico y genera previsualizaciones reproducibles.
         </p>
       </header>
 
@@ -187,7 +331,7 @@ export default function App() {
             <div className="field">
               <div className="label-row">
                 <span>Swing</span>
-                <small className="muted">Activa shuffle y visualización ternaria</small>
+                <small className="muted">Activa shuffle y exportación ternaria</small>
               </div>
               <div className="actions">
                 <button
@@ -242,13 +386,28 @@ export default function App() {
             </div>
 
             <div className="actions">
-              <button type="submit" className="primary">
-                Previsualizar
+              <button type="submit" className="primary" disabled={isLoading}>
+                {isLoading ? 'Generando…' : 'Previsualizar'}
               </button>
-              <button type="button" className="secondary" onClick={handleReset}>
+              <button type="button" className="secondary" onClick={handleReset} disabled={isLoading}>
                 Restablecer
               </button>
             </div>
+
+            {status === 'error' && errorMessage ? (
+              <div className="alert error" role="alert">
+                <strong>Ups:</strong> {errorMessage}
+                {unknownChords.length ? (
+                  <ul>
+                    {unknownChords.map((issue) => (
+                      <li key={`${issue.index}-${issue.chordSymbol}`}>
+                        Compás {issue.index + 1}: {issue.chordSymbol}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </form>
         </section>
 
@@ -256,7 +415,10 @@ export default function App() {
           <h2>Previsualización</h2>
           <div className="preview">
             <div className="preview-card">
-              <h3>Progresión normalizada</h3>
+              <div className="preview-card-header">
+                <h3>Progresión normalizada</h3>
+                {status === 'previewed' ? <span className="status-chip">Actualizado</span> : null}
+              </div>
               {bars.length ? (
                 <div className="preview-grid">
                   {bars.map((bar) => (
@@ -277,6 +439,8 @@ export default function App() {
                 <div className="preview-empty">
                   Completa los parámetros y pulsa «Previsualizar» para simular el scheduler.
                 </div>
+              ) : isLoading ? (
+                <div className="preview-empty loading">Calculando scheduler…</div>
               ) : previewNotes.length ? (
                 <table className="data-table">
                   <thead>
@@ -308,6 +472,34 @@ export default function App() {
                 <div className="preview-empty">Aún no hay notas generadas.</div>
               )}
             </div>
+
+            {meta && artifacts ? (
+              <div className="preview-card">
+                <h3>Exportadores</h3>
+                <div className="downloads">
+                  <a
+                    className="primary"
+                    href={downloadUrls?.midi}
+                    download="bebop-targeting.mid"
+                    aria-disabled={!downloadUrls}
+                  >
+                    Descargar MIDI
+                  </a>
+                  <a
+                    className="secondary"
+                    href={downloadUrls?.musicXml}
+                    download="bebop-targeting.musicxml"
+                    aria-disabled={!downloadUrls}
+                  >
+                    Descargar MusicXML
+                  </a>
+                </div>
+                <details>
+                  <summary>Mostrar texto exportado</summary>
+                  <pre className="text-preview">{artifacts.text}</pre>
+                </details>
+              </div>
+            ) : null}
 
             {timeline.length ? (
               <div className="preview-card">
