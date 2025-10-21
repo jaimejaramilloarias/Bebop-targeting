@@ -6,7 +6,7 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 - ✅ Configurar el cargador de teoría (`src/theory.ts`) con alias de acordes y validaciones básicas.
 - ✅ Implementar el parser de progresiones y normalización de símbolos (`src/parser.ts`).
 - ✅ Crear un RNG reproducible con utilidades de elección ponderada (`src/rng.ts`).
-- ⬜️ Publicar helpers de validación para detectar acordes desconocidos antes del scheduler.
+- ✅ Publicar helpers de validación para detectar acordes desconocidos antes del scheduler.
 
 ## Generación melódica
 - ⬜️ Diseñar el generador de contorno (`src/contour.ts`) con control de registro por slider.
@@ -24,6 +24,7 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 - ⬜️ Prototipo de UI web: selector de progresión, seed y slider de contorno.
 - ⬜️ Integrar previsualización textual en la UI usando el exportador.
 - ⬜️ Añadir controles para descargar MIDI/MusicXML.
+- ⬜️ Conectar la UI con los helpers de validación para alertar acordes desconocidos.
 
 ## Calidad y automatización
 - ✅ Cubrir teoría, parser, RNG y exportador textual con pruebas unitarias (`tests/*`).
