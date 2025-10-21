@@ -15,6 +15,15 @@ Generado el 2025-10-21T01:29:31.
 2. Ejecutar las pruebas con `npm test`.
 3. Seguir `agents.md` y `engine.md` para completar los módulos restantes (contour, rhythm, targeting, etc.).
 
+### UI web
+La UI React vive en `ui/` y está lista para ejecutarse en local:
+
+1. Instala sus dependencias con `npm install --prefix ui`.
+2. Arranca el servidor de desarrollo con `npm run dev:ui`.
+3. Abre [http://localhost:5173](http://localhost:5173) y verifica que cargue la interfaz.
+
+Consulta [`ui/README.md`](ui/README.md) para más capturas y comandos adicionales.
+
 ## Uso sugerido
 1. Implementar estructura de proyecto según `agents.md`.
 2. Cargar `data/theory.json` y seguir `engine.md`.
