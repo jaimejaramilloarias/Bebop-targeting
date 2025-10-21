@@ -2,6 +2,8 @@ export * from "./parser.js";
 export * from "./theory.js";
 export * from "./rng.js";
 export * from "./exporter/toText.js";
+export * from "./exporter/toMIDI.js";
+export * from "./exporter/toMusicXML.js";
 export * from "./validation.js";
 export * from "./pitch.js";
 export * from "./contour.js";
