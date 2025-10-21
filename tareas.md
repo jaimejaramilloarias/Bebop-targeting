@@ -9,10 +9,10 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 - ✅ Publicar helpers de validación para detectar acordes desconocidos antes del scheduler.
 
 ## Generación melódica
-- ⬜️ Diseñar el generador de contorno (`src/contour.ts`) con control de registro por slider.
-- ⬜️ Implementar motor rítmico (`src/rhythm.ts`) con inserción automática de aislados.
-- ⬜️ Construir scheduler multiacorde con reglas de anticipación (`src/scheduler.ts`).
-- ⬜️ Añadir lógica de cierre estilístico posterior al último target.
+- ✅ Diseñar el generador de contorno (`src/contour.ts`) con control de registro por slider.
+- ✅ Implementar motor rítmico (`src/rhythm.ts`) con inserción automática de aislados.
+- ✅ Construir scheduler multiacorde con reglas de anticipación (`src/scheduler.ts`).
+- ✅ Añadir lógica de cierre estilístico posterior al último target.
 
 ## Exportadores y entrega
 - ✅ Entregar exportador textual con metadatos opcionales (`src/exporter/toText.ts`).
@@ -25,8 +25,8 @@ Este backlog organiza el trabajo necesario para completar el generador de frases
 - ✅ Integrar previsualización textual en la UI usando el exportador.
 - ✅ Añadir controles para descargar MIDI/MusicXML.
 - ✅ Conectar la UI con los helpers de validación para alertar acordes desconocidos.
-- ⬜️ Implementar previsualización de audio MIDI en la UI (render en WebAudio con swing opcional).
-- ⬜️ Añadir botón de "Regenerar" que solicite nuevas variantes al motor manteniendo/alterando seed.
+- ✅ Implementar previsualización de audio MIDI en la UI (render en WebAudio con swing opcional).
+- ✅ Añadir botón de "Regenerar" que solicite nuevas variantes al motor manteniendo/alterando seed.
 - ⬜️ Exponer selector de puerto mediante WebMIDI para enrutar la reproducción hacia plugins externos.
 - ⬜️ Renderizar una vista de partitura/tablatura (Canvas/SVG) con las notas resultantes por compás.
 

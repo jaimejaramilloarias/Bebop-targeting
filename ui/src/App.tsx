@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type NotePreview = {
   t: number;
@@ -105,6 +105,72 @@ function base64ToBlob(base64: string, mime: string): Blob {
   return new Blob([bytes], { type: mime });
 }
 
+interface WebAudioWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
+function isAudioSupported(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const audioWindow = window as WebAudioWindow;
+  return Boolean(window.AudioContext || audioWindow.webkitAudioContext);
+}
+
+function createAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const audioWindow = window as WebAudioWindow;
+  const Ctor = window.AudioContext ?? audioWindow.webkitAudioContext;
+  if (!Ctor) {
+    return null;
+  }
+  return new Ctor();
+}
+
+function midiToFrequency(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function eighthToSeconds(eighth: number, tempoBpm: number, swingRatio: number | null): number {
+  const tempo = tempoBpm > 0 ? tempoBpm : 160;
+  const quarter = 60 / tempo;
+  const beatIndex = Math.floor(eighth / 2);
+  const position = eighth % 2;
+  if (position === 0) {
+    return beatIndex * quarter;
+  }
+  if (swingRatio === null) {
+    return beatIndex * quarter + quarter / 2;
+  }
+  const ratio = clamp(swingRatio, 0, 1);
+  return beatIndex * quarter + quarter * ratio;
+}
+
+type PlaybackEvent = {
+  start: number;
+  end: number;
+  midi: number;
+};
+
+function computePlaybackSchedule(notes: NotePreview[], tempoBpm: number, swingRatio: number | null): PlaybackEvent[] {
+  if (!notes.length) {
+    return [];
+  }
+  const schedule = notes.map((note) => {
+    const start = eighthToSeconds(note.t, tempoBpm, swingRatio);
+    const end = eighthToSeconds(note.t + note.dur, tempoBpm, swingRatio);
+    const safeEnd = end > start ? end : start + 0.12;
+    return { start, end: safeEnd, midi: note.midi };
+  });
+  return schedule.sort((a, b) => a.start - b.start);
+}
+
 function computeTimeline(meta: GeneratorMeta | null, notes: NotePreview[]): TimelineEntry[] {
   if (!meta || !notes.length) {
     return [];
@@ -179,6 +245,11 @@ export default function App() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'previewed' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [unknownChords, setUnknownChords] = useState<UnknownChordIssue[]>([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioSupported = useMemo(isAudioSupported, []);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const activeNodesRef = useRef<{ oscillator: OscillatorNode; gain: GainNode }[]>([]);
+  const stopTimerRef = useRef<number | null>(null);
 
   const bars = useMemo(() => parseProgressionForUi(form.progression), [form.progression]);
   const timeline = useMemo(() => computeTimeline(meta, previewNotes), [meta, previewNotes]);
@@ -203,50 +274,147 @@ export default function App() {
     };
   }, [artifacts]);
 
+  const stopPlayback = useCallback(() => {
+    if (stopTimerRef.current !== null) {
+      window.clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+    const context = audioContextRef.current;
+    activeNodesRef.current.forEach(({ oscillator, gain }) => {
+      try {
+        const now = context ? context.currentTime : 0;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setTargetAtTime(0, now, 0.01);
+        oscillator.stop(now + 0.03);
+      } catch (error) {
+        console.warn('No se pudo detener un oscilador', error);
+      }
+    });
+    activeNodesRef.current = [];
+    setIsPlaying(false);
+  }, []);
+
+  useEffect(() => () => {
+    stopPlayback();
+    audioContextRef.current?.close().catch(() => null);
+  }, [stopPlayback]);
+
   const handleChange = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const playbackTempo = meta?.tempo_bpm ?? (form.tempo > 0 ? form.tempo : 160);
+  const playbackSwingRatio = meta?.swingRatio ?? (meta?.swing ? 2 / 3 : null);
+  const playbackSchedule = useMemo(
+    () => computePlaybackSchedule(previewNotes, playbackTempo, playbackSwingRatio),
+    [previewNotes, playbackTempo, playbackSwingRatio]
+  );
+
+  useEffect(() => {
+    stopPlayback();
+  }, [previewNotes, meta, stopPlayback]);
+
+  const startPlayback = useCallback(async () => {
+    if (!audioSupported || !playbackSchedule.length) {
+      return;
+    }
+    stopPlayback();
+    let context = audioContextRef.current;
+    if (!context) {
+      context = createAudioContext();
+      audioContextRef.current = context;
+    }
+    if (!context) {
+      return;
+    }
+    if (context.state === 'suspended') {
+      await context.resume();
+    }
+    const now = context.currentTime + 0.05;
+    activeNodesRef.current = playbackSchedule.map((event) => {
+      const oscillator = context!.createOscillator();
+      const gain = context!.createGain();
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.value = midiToFrequency(event.midi);
+      const attack = 0.01;
+      const release = 0.12;
+      const sustain = Math.max(0, event.end - event.start - release);
+      gain.gain.setValueAtTime(0, now + event.start);
+      gain.gain.linearRampToValueAtTime(0.18, now + event.start + attack);
+      gain.gain.setValueAtTime(0.18, now + event.start + attack + sustain);
+      gain.gain.linearRampToValueAtTime(0.0001, now + event.start + Math.max(sustain, 0) + release);
+      oscillator.connect(gain);
+      gain.connect(context!.destination);
+      oscillator.start(now + event.start);
+      oscillator.stop(now + event.end + 0.25);
+      return { oscillator, gain };
+    });
+    if (activeNodesRef.current.length) {
+      const totalDuration = playbackSchedule[playbackSchedule.length - 1].end;
+      stopTimerRef.current = window.setTimeout(() => {
+        stopPlayback();
+      }, (totalDuration + 0.5) * 1000);
+      setIsPlaying(true);
+    }
+  }, [audioSupported, playbackSchedule, stopPlayback]);
+
+  const buildPayload = useCallback(
+    (seedOverride?: number): SchedulerRequestPayload => {
+      const payload: SchedulerRequestPayload = {
+        key: form.key,
+        progression: form.progression,
+        swing: form.swing,
+        contour_slider: form.contour
+      };
+      if (form.tempo > 0) {
+        payload.tempo_bpm = form.tempo;
+      }
+      const seed = seedOverride ?? parseSeed(form.seed);
+      if (seed !== undefined) {
+        payload.seed = seed;
+      }
+      return payload;
+    },
+    [form]
+  );
+
+  const generatePreview = useCallback(
+    async (payload: SchedulerRequestPayload, nextSeed?: string) => {
+      stopPlayback();
+      setStatus('loading');
+      setErrorMessage(null);
+      setUnknownChords([]);
+      setPreviewNotes([]);
+      setMeta(null);
+      setArtifacts(null);
+
+      try {
+        const response = await requestPreview(payload);
+        setPreviewNotes(response.notes);
+        setMeta(response.meta);
+        setArtifacts(response.artifacts);
+        if (typeof nextSeed === 'string') {
+          setForm((current) => ({ ...current, seed: nextSeed }));
+        }
+        setStatus('previewed');
+      } catch (error) {
+        const apiError = error as ApiError;
+        setErrorMessage(apiError.message ?? 'No se pudo generar la previsualización');
+        setUnknownChords(apiError.issues ?? []);
+        setStatus('error');
+      }
+    },
+    [stopPlayback]
+  );
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setStatus('loading');
-    setErrorMessage(null);
-    setUnknownChords([]);
-    setPreviewNotes([]);
-    setMeta(null);
-    setArtifacts(null);
-
-    const payload: SchedulerRequestPayload = {
-      key: form.key,
-      progression: form.progression,
-      swing: form.swing,
-      contour_slider: form.contour
-    };
-
-    if (form.tempo > 0) {
-      payload.tempo_bpm = form.tempo;
-    }
-
-    const seed = parseSeed(form.seed);
-    if (seed !== undefined) {
-      payload.seed = seed;
-    }
-
-    try {
-      const response = await requestPreview(payload);
-      setPreviewNotes(response.notes);
-      setMeta(response.meta);
-      setArtifacts(response.artifacts);
-      setStatus('previewed');
-    } catch (error) {
-      const apiError = error as ApiError;
-      setErrorMessage(apiError.message ?? 'No se pudo generar la previsualización');
-      setUnknownChords(apiError.issues ?? []);
-      setStatus('error');
-    }
+    const payload = buildPayload();
+    await generatePreview(payload);
   };
 
   const handleReset = () => {
+    stopPlayback();
     setForm({
       key: 'C',
       progression: DEFAULT_PROGRESSION,
@@ -261,6 +429,15 @@ export default function App() {
     setErrorMessage(null);
     setUnknownChords([]);
     setStatus('idle');
+  };
+
+  const handleRegenerate = async () => {
+    if (isLoading || status !== 'previewed') {
+      return;
+    }
+    const newSeed = Math.floor(Math.random() * 1_000_000_000);
+    const payload = buildPayload(newSeed);
+    await generatePreview(payload, String(newSeed));
   };
 
   const isLoading = status === 'loading';
@@ -392,6 +569,14 @@ export default function App() {
               <button type="button" className="secondary" onClick={handleReset} disabled={isLoading}>
                 Restablecer
               </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={handleRegenerate}
+                disabled={isLoading || status !== 'previewed'}
+              >
+                Regenerar variación
+              </button>
             </div>
 
             {status === 'error' && errorMessage ? (
@@ -435,6 +620,25 @@ export default function App() {
 
             <div className="preview-card">
               <h3>Targets y aproximaciones</h3>
+              {playbackSchedule.length ? (
+                <div className="playback-controls">
+                  {audioSupported ? (
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={isPlaying ? stopPlayback : startPlayback}
+                    >
+                      {isPlaying ? 'Detener audio' : 'Reproducir audio'}
+                    </button>
+                  ) : (
+                    <span className="playback-meta muted">Audio no soportado en este navegador.</span>
+                  )}
+                  <span className="playback-meta">
+                    Tempo {Math.round(playbackTempo)} BPM
+                    {playbackSwingRatio !== null ? ` · Swing ${(playbackSwingRatio * 100).toFixed(0)}%` : ' · Recto'}
+                  </span>
+                </div>
+              ) : null}
               {status === 'idle' ? (
                 <div className="preview-empty">
                   Completa los parámetros y pulsa «Previsualizar» para simular el scheduler.
