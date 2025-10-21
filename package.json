@@ -1,0 +1,14 @@
+{
+  "name": "bebop-targeting",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5",
+    "vitest": "^1.5.0"
+  }
+}
