@@ -79,6 +79,20 @@ describe("HTTP API", () => {
     expect(payload.variants[0].meta.seed).not.toBe(payload.variants[1].meta.seed);
   });
 
+  it("acepta rutas con prefijo /api", async () => {
+    const { port } = await startServer();
+    const response = await fetch(`http://127.0.0.1:${port}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ progression: "| Fm7 Bb7 | Ebmaj7 |", key: "Eb", seed: 1234 }),
+    });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(Array.isArray(payload.notes)).toBe(true);
+    expect(payload.notes.length).toBeGreaterThan(0);
+    expect(payload.meta?.progression).toBe("| Fm7 Bb7 | Ebmaj7 |");
+  });
+
   it("devuelve errores estructurados para acordes desconocidos", async () => {
     const { port } = await startServer();
     const response = await fetch(`http://127.0.0.1:${port}/generate`, {
