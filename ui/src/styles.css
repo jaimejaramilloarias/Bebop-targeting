@@ -309,6 +309,20 @@ a.secondary:not([aria-disabled='true']):hover {
   margin-bottom: 1rem;
 }
 
+.playback-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.playback-meta {
+  font-size: 0.9rem;
+  color: #4338ca;
+  font-weight: 600;
+}
+
 .text-preview {
   margin-top: 1rem;
   border-radius: 12px;
