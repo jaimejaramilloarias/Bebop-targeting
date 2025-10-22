@@ -68,6 +68,45 @@ export interface GeneratorVariantsRequest {
 const DEFAULT_TEMPO_BPM = 180;
 const DEFAULT_SWING_RATIO = 2 / 3;
 
+function bytesToBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+
+  if (typeof globalThis !== "undefined" && typeof globalThis.btoa === "function") {
+    const { btoa } = globalThis;
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      const chunk = bytes.subarray(offset, offset + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  }
+
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let output = "";
+  for (let index = 0; index < bytes.length; index += 3) {
+    const byte1 = bytes[index];
+    const hasByte2 = index + 1 < bytes.length;
+    const hasByte3 = index + 2 < bytes.length;
+    const byte2 = hasByte2 ? bytes[index + 1] : 0;
+    const byte3 = hasByte3 ? bytes[index + 2] : 0;
+
+    const enc1 = byte1 >> 2;
+    const enc2 = ((byte1 & 0x03) << 4) | (byte2 >> 4);
+    const enc3 = ((byte2 & 0x0f) << 2) | (byte3 >> 6);
+    const enc4 = byte3 & 0x3f;
+
+    output += alphabet[enc1];
+    output += alphabet[enc2];
+    output += hasByte2 ? alphabet[enc3] : "=";
+    output += hasByte3 ? alphabet[enc4] : "=";
+  }
+
+  return output;
+}
+
 export function normalizeSeed(rawSeed: number | undefined): number {
   if (rawSeed === undefined) {
     return Math.floor(Date.now() % 0xffffffff);
@@ -187,7 +226,7 @@ export function generateFromRequest(
   options: GeneratorOptions = {},
 ): GeneratorResponse {
   const { notes, meta, artifacts, structured } = generateInternals(request, options);
-  const midiBase64 = Buffer.from(artifacts.midiBinary).toString("base64");
+  const midiBase64 = bytesToBase64(artifacts.midiBinary);
   return {
     notes,
     meta,

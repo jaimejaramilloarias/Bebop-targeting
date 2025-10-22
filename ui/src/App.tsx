@@ -1,14 +1,16 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  generateFromRequest,
+  generateMidiStream,
+  type GeneratorMeta,
+  type GeneratorResponse,
+  type SchedulerRequest,
+} from '../../src/api.ts';
+import { UnknownChordError, type UnknownChordIssue } from '../../src/validation.ts';
+import type { StructuredBar as EngineStructuredBar, StructuredData as EngineStructuredData } from '../../src/structure.ts';
+import type { ChordWindow } from '../../src/parser.ts';
 
-type NotePreview = {
-  t: number;
-  dur: number;
-  midi: number;
-  pitch: string;
-  src: 'approach' | 'target' | 'isolated' | 'closure';
-  chord?: string;
-  degree?: string;
-};
+type NotePreview = GeneratorResponse['notes'][number];
 
 type FormState = {
   key: string;
@@ -19,32 +21,7 @@ type FormState = {
   seed: string;
 };
 
-type UnknownChordIssue = {
-  chordSymbol: string;
-  index: number;
-  message: string;
-};
-
-type GeneratorMeta = {
-  progression: string;
-  totalEighths: number;
-  totalBars: number;
-  tempo_bpm?: number;
-  swing?: boolean;
-  swingRatio: number | null;
-  seed: number;
-};
-
-type ApiResponse = {
-  notes: NotePreview[];
-  meta: GeneratorMeta;
-  artifacts: {
-    text: string;
-    midiBase64: string;
-    musicXml: string;
-  };
-  structured: StructuredData;
-};
+type ApiResponse = GeneratorResponse;
 
 type ApiError = {
   message: string;
@@ -54,8 +31,6 @@ type ApiError = {
 const KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const DEFAULT_PROGRESSION = '';
 const PROGRESSION_PLACEHOLDER = '| Dm7  G7 | Cmaj7 |';
-const API_ENDPOINT = '/api/generate';
-const API_MIDI_ENDPOINT = '/api/generate/midi';
 
 type TimelineEntry = {
   label: string;
@@ -67,25 +42,9 @@ type DownloadUrls = {
   musicXml: string;
 };
 
-type StructuredChordWindow = {
-  chordSymbol: string;
-  startEighth: number;
-  lengthEighths: number;
-};
-
-type StructuredBar = {
-  index: number;
-  startEighth: number;
-  lengthEighths: number;
-  chordWindows: StructuredChordWindow[];
-  notes: NotePreview[];
-  targets: NotePreview[];
-};
-
-type StructuredData = {
-  bars: StructuredBar[];
-  totalEighths: number;
-};
+type StructuredChordWindow = ChordWindow;
+type StructuredBar = EngineStructuredBar;
+type StructuredData = EngineStructuredData;
 
 type MidiOutputInfo = {
   id: string;
@@ -350,28 +309,24 @@ function parseSeed(value: string): number | undefined {
 }
 
 async function requestPreview(payload: SchedulerRequestPayload): Promise<ApiResponse> {
-  const response = await fetch(API_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    const error: ApiError = await response.json().catch(() => ({ message: 'Error desconocido' }));
-    throw error;
+  try {
+    return await Promise.resolve(generateFromRequest(payload));
+  } catch (error) {
+    throw normalizeApiError(error);
   }
-
-  return (await response.json()) as ApiResponse;
 }
 
-type SchedulerRequestPayload = {
-  key: string;
-  progression: string;
-  tempo_bpm?: number;
-  swing?: boolean;
-  contour_slider?: number;
-  seed?: number;
-};
+function normalizeApiError(error: unknown): ApiError {
+  if (error instanceof UnknownChordError) {
+    return { message: error.message, issues: error.issues };
+  }
+  if (error instanceof Error) {
+    return { message: error.message };
+  }
+  return { message: String(error) };
+}
+
+type SchedulerRequestPayload = SchedulerRequest;
 
 export default function App() {
   const [form, setForm] = useState<FormState>({
@@ -644,7 +599,7 @@ export default function App() {
         }
         setStatus('previewed');
       } catch (error) {
-        const apiError = error as ApiError;
+        const apiError = normalizeApiError(error);
         setErrorMessage(apiError.message ?? 'No se pudo generar la previsualización');
         setUnknownChords(apiError.issues ?? []);
         setStructured(null);
@@ -700,20 +655,13 @@ export default function App() {
     await generatePreview(payload, String(newSeed));
   };
 
-  const handleDownloadMidiStream = useCallback(async () => {
+  const handleDownloadMidiStream = useCallback(() => {
     if (!lastPayloadRef.current) {
       return;
     }
     try {
-      const response = await fetch(API_MIDI_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lastPayloadRef.current)
-      });
-      if (!response.ok) {
-        throw new Error(`Respuesta inesperada: ${response.status}`);
-      }
-      const blob = new Blob([await response.arrayBuffer()], { type: 'audio/midi' });
+      const response = generateMidiStream(lastPayloadRef.current);
+      const blob = new Blob([response.midiBinary], { type: 'audio/midi' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -724,7 +672,8 @@ export default function App() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('No se pudo descargar el MIDI en streaming', error);
-      setErrorMessage('No se pudo descargar el MIDI en streaming.');
+      const payload = normalizeApiError(error);
+      setErrorMessage(payload.message ?? 'No se pudo descargar el MIDI en streaming.');
     }
   }, []);
 
